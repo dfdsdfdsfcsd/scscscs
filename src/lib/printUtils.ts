@@ -13,7 +13,7 @@ export interface PrintSettings {
 const PRINT_CSS = `
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family: -apple-system, 'Segoe UI', system-ui, BlinkMacSystemFont, sans-serif;
     color: #1e293b;
     font-size: 12px;
     line-height: 1.6;
@@ -138,7 +138,7 @@ const PRINT_CSS = `
     white-space: pre-wrap;
     word-wrap: break-word;
     overflow-wrap: break-word;
-    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-family: -apple-system, 'Segoe UI', system-ui, BlinkMacSystemFont, sans-serif;
     font-size: 12px;
     line-height: 1.8;
     color: #1e293b;

@@ -478,7 +478,7 @@ export function BackupPage() {
           </div>
           <div className="flex items-start gap-2">
             <HardDrive className="h-4 w-4 text-slate-400 flex-shrink-0 mt-0.5" />
-            <p><strong className="text-slate-700 dark:text-slate-300">Arquivos locais:</strong> fotografias e documentos referenciados em pastas externas não são copiados no backup JSON — precisam ser protegidos pelo Windows.</p>
+            <p><strong className="text-slate-700 dark:text-slate-300">Arquivos locais:</strong> fotografias e documentos referenciados em pastas externas não são copiados no backup JSON — precisam ser protegidos pelo sistema operacional.</p>
           </div>
           <div className="flex items-start gap-2">
             <Cloud className="h-4 w-4 text-slate-400 flex-shrink-0 mt-0.5" />
