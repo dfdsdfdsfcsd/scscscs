@@ -12,6 +12,7 @@ import { createPasswordHash, verifyPassword, isLockedOut, recordFailedAttempt, r
 import { isElectron, nativeSelectLogo, nativeReadLogoAsDataURL, nativeRemoveLogo } from '@/lib/nativeFile';
 import { isGDriveAvailable, connectGDrive, disconnectGDrive, getGDriveStatus, getGDriveRootUrl } from '@/lib/googleDrive';
 import { isGmailAvailable, connectGmail, disconnectGmail, getGmailStatus, sendGmailTest } from '@/lib/gmail';
+import { KeyRound, CheckCircle2 } from 'lucide-react';
 
 const colorPresets = [
   { primary: '#0f766e', accent: '#f59e0b', name: 'Esmeralda' },
@@ -750,6 +751,8 @@ export function SettingsPage() {
               <li className="flex items-start gap-2"><ShieldCheck className="h-4 w-4 text-teal-500 flex-shrink-0 mt-0.5" /> O aplicativo continua funcionando localmente sem conexão com o Drive</li>
             </ul>
           </div>
+
+          <GoogleOAuthConfig />
         </div>
       )}
 
@@ -877,12 +880,7 @@ export function SettingsPage() {
             </ul>
           </div>
 
-          <div className="card p-6 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800">
-            <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2">Configuração necessária (desenvolvedor)</h4>
-            <p className="text-xs text-amber-700 dark:text-amber-300">
-              Para que o envio de e-mails funcione, é necessário configurar um projeto no Google Cloud Console com OAuth 2.0 e a Gmail API ativada. O Client ID OAuth deve ser definido na constante GOOGLE_CLIENT_ID no arquivo electron/main.js. Consulte o README do projeto para instruções detalhadas.
-            </p>
-          </div>
+          <GoogleOAuthConfig />
         </div>
       )}
 
@@ -897,6 +895,119 @@ export function SettingsPage() {
       <p className="text-center text-sm text-slate-400 dark:text-slate-500 mt-8 mb-2 select-none">
         Desenvolvido por Ricardo Martins
       </p>
+    </div>
+  );
+}
+
+function GoogleOAuthConfig() {
+  const [clientId, setClientId] = useState('');
+  const [configured, setConfigured] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const checkStatus = async () => {
+    setChecking(true);
+    try {
+      const api = (window as Window).electronAPI;
+      if (api?.googleOAuthGetClientId) {
+        const res = await api.googleOAuthGetClientId();
+        setConfigured(res.configured);
+      } else {
+        setConfigured(false);
+      }
+    } catch {
+      setConfigured(false);
+    }
+    setChecking(false);
+  };
+
+  useEffect(() => {
+    checkStatus();
+  }, []);
+
+  const handleSave = async () => {
+    if (!clientId.trim()) { toast('Informe o Client ID do Google', 'warning'); return; }
+    if (!clientId.trim().includes('.apps.googleusercontent.com')) {
+      toast('O Client ID deve terminar com .apps.googleusercontent.com', 'warning');
+      return;
+    }
+    setSaving(true);
+    try {
+      const api = (window as Window).electronAPI;
+      if (!api?.googleOAuthSetClientId) {
+        toast('Configuração disponível apenas no aplicativo desktop', 'warning');
+        setSaving(false);
+        return;
+      }
+      const res = await api.googleOAuthSetClientId(clientId.trim());
+      if (res.success) {
+        toast('Client ID do Google salvo com sucesso', 'success');
+        setClientId('');
+        setConfigured(true);
+      } else {
+        toast(res.error ?? 'Erro ao salvar Client ID', 'error');
+      }
+    } catch {
+      toast('Erro ao salvar Client ID', 'error');
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div className="card p-6">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="h-10 w-10 rounded-xl flex items-center justify-center text-white" style={{ backgroundColor: 'var(--color-primary)' }}>
+          <KeyRound className="h-5 w-5" />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Configuração do Google OAuth</h3>
+          <p className="text-sm text-slate-400">Necessário para conectar Google Drive e envio de e-mails</p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 mb-4">
+        {checking ? (
+          <span className="badge badge-neutral">Verificando...</span>
+        ) : configured ? (
+          <span className="badge badge-success"><CheckCircle2 className="h-3 w-3 inline mr-1" /> Client ID configurado</span>
+        ) : (
+          <span className="badge badge-warning">Client ID não configurado</span>
+        )}
+      </div>
+
+      <div className="rounded-xl border-2 border-slate-200 dark:border-slate-700 p-4 mb-4">
+        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Como obter o Client ID</h4>
+        <ol className="list-decimal list-inside space-y-2 text-sm text-slate-500 dark:text-slate-400">
+          <li>Acesse o <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:underline inline-flex items-center gap-1">Google Cloud Console <ExternalLink className="h-3 w-3" /></a></li>
+          <li>Crie um projeto (ou selecione um existente)</li>
+          <li>Ative a <strong>Google Drive API</strong> e a <strong>Gmail API</strong> em "APIs &amp; Serviços"</li>
+          <li>Vá em "Credenciais" &rarr; "Criar credenciais" &rarr; "ID do cliente OAuth"</li>
+          <li>Selecione o tipo <strong>App para computador</strong></li>
+          <li>Adicione as seguintes URIs de redirecionamento autorizadas:
+            <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
+              <li><code className="text-xs bg-slate-100 dark:bg-slate-800 px-1 rounded">http://127.0.0.1:8493/callback</code> (Google Drive)</li>
+              <li><code className="text-xs bg-slate-100 dark:bg-slate-800 px-1 rounded">http://127.0.0.1:8494/gmail-callback</code> (Gmail)</li>
+            </ul>
+          </li>
+          <li>Copie o <strong>Client ID</strong> gerado (termina com <code className="text-xs bg-slate-100 dark:bg-slate-800 px-1 rounded">.apps.googleusercontent.com</code>)</li>
+          <li>Cole no campo abaixo e clique em "Salvar Client ID"</li>
+        </ol>
+      </div>
+
+      <label className="label">Google OAuth Client ID</label>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          className="input"
+          placeholder="1234567890-xxxxx.apps.googleusercontent.com"
+          value={clientId}
+          onChange={(e) => setClientId(e.target.value)}
+        />
+        <button onClick={handleSave} disabled={saving || !clientId.trim()} className="btn-primary whitespace-nowrap disabled:opacity-50">
+          {saving ? 'Salvando...' : 'Salvar Client ID'}
+        </button>
+      </div>
+      <p className="text-xs text-slate-400 mt-2">O Client ID é armazenado com segurança no computador, nunca no navegador ou no código do aplicativo.</p>
     </div>
   );
 }

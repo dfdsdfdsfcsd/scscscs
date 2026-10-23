@@ -12,6 +12,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readLogoAsDataURL: (logoPath) => ipcRenderer.invoke('fs:readLogoAsDataURL', logoPath),
   removeLogo: (logoPath) => ipcRenderer.invoke('fs:removeLogo', logoPath),
   resolveLogoPath: () => ipcRenderer.invoke('fs:resolveLogoPath'),
+  // Google OAuth configuration
+  googleOAuthGetClientId: () => ipcRenderer.invoke('google-oauth:getClientId'),
+  googleOAuthSetClientId: (clientId) => ipcRenderer.invoke('google-oauth:setClientId', clientId),
   // Google Drive
   gdriveConnect: () => ipcRenderer.invoke('gdrive:connect'),
   gdriveDisconnect: () => ipcRenderer.invoke('gdrive:disconnect'),

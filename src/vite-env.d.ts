@@ -26,6 +26,8 @@ interface ElectronAPI {
   readLogoAsDataURL: (logoPath: string) => Promise<{ success: boolean; dataURL?: string; error?: string }>;
   removeLogo: (logoPath: string) => Promise<{ success: boolean; error?: string }>;
   resolveLogoPath: () => Promise<{ success: boolean; logoPath?: string }>;
+  googleOAuthGetClientId: () => Promise<{ configured: boolean; clientId: string }>;
+  googleOAuthSetClientId: (clientId: string) => Promise<{ success: boolean; error?: string }>;
   gdriveConnect: () => Promise<{ success: boolean; email?: string; error?: string }>;
   gdriveDisconnect: () => Promise<{ success: boolean }>;
   gdriveStatus: () => Promise<{ connected: boolean; email?: string; error?: string }>;

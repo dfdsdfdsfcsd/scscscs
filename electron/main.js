@@ -223,9 +223,54 @@ ipcMain.handle('fs:resolveLogoPath', async () => {
   }
 });
 
+// --- Google OAuth Configuration ---
+
+const GOOGLE_CONFIG_FILE = path.join(app.getPath('userData'), 'google-oauth-config.json');
+
+function loadGoogleClientId() {
+  try {
+    if (fs.existsSync(GOOGLE_CONFIG_FILE)) {
+      const config = JSON.parse(fs.readFileSync(GOOGLE_CONFIG_FILE, 'utf-8'));
+      if (config.client_id && config.client_id.includes('.apps.googleusercontent.com')) {
+        return config.client_id;
+      }
+    }
+  } catch {}
+  return '';
+}
+
+function saveGoogleClientId(clientId) {
+  try {
+    fs.writeFileSync(GOOGLE_CONFIG_FILE, JSON.stringify({ client_id: clientId }), { mode: 0o600 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getGoogleClientId() {
+  return loadGoogleClientId();
+}
+
+ipcMain.handle('google-oauth:getClientId', async () => {
+  const clientId = getGoogleClientId();
+  return { configured: !!clientId, clientId };
+});
+
+ipcMain.handle('google-oauth:setClientId', async (_event, clientId) => {
+  if (!clientId || typeof clientId !== 'string') {
+    return { success: false, error: 'Client ID inválido' };
+  }
+  const trimmed = clientId.trim();
+  if (!trimmed.includes('.apps.googleusercontent.com')) {
+    return { success: false, error: 'O Client ID deve terminar com .apps.googleusercontent.com' };
+  }
+  const ok = saveGoogleClientId(trimmed);
+  return { success: ok, error: ok ? undefined : 'Erro ao salvar o Client ID' };
+});
+
 // --- Google Drive Integration ---
 
-const GOOGLE_CLIENT_ID = '1234567890-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com';
 const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const REDIRECT_URI = 'http://127.0.0.1:8493/callback';
 const TOKEN_FILE = path.join(app.getPath('userData'), 'gdrive-token.json');
@@ -268,7 +313,7 @@ function deleteToken() {
 
 async function refreshAccessToken(refreshToken) {
   const body = new URLSearchParams({
-    client_id: GOOGLE_CLIENT_ID,
+    client_id: getGoogleClientId(),
     refresh_token: refreshToken,
     grant_type: 'refresh_token',
   });
@@ -372,8 +417,10 @@ ipcMain.handle('gdrive:connect', async () => {
   try {
     const pkce = generatePKCE();
     const state = Math.random().toString(36).slice(2);
+    const clientId = getGoogleClientId();
+    if (!clientId) return { success: false, error: 'Google Client ID não configurado. Acesse Configurações > Google Drive para configurar.' };
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-      `client_id=${GOOGLE_CLIENT_ID}` +
+      `client_id=${clientId}` +
       `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
       `&response_type=code` +
       `&scope=${encodeURIComponent(GOOGLE_SCOPE)}` +
@@ -408,7 +455,7 @@ ipcMain.handle('gdrive:connect', async () => {
             if (!code) throw new Error('No code returned');
 
             const tokenBody = new URLSearchParams({
-              client_id: GOOGLE_CLIENT_ID,
+              client_id: clientId,
               code,
               code_verifier: pkce.verifier,
               redirect_uri: REDIRECT_URI,
@@ -569,7 +616,7 @@ async function getValidGmailAccessToken() {
   if (token.expires_at && now > token.expires_at - 60000) {
     if (token.refresh_token) {
       const body = new URLSearchParams({
-        client_id: GOOGLE_CLIENT_ID,
+        client_id: getGoogleClientId(),
         refresh_token: token.refresh_token,
         grant_type: 'refresh_token',
       });
@@ -604,8 +651,10 @@ ipcMain.handle('gmail:connect', async () => {
   try {
     const pkce = generatePKCE();
     const state = Math.random().toString(36).slice(2);
+    const clientId = getGoogleClientId();
+    if (!clientId) return { success: false, error: 'Google Client ID não configurado. Acesse Configurações > Envio de e-mails para configurar.' };
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-      `client_id=${GOOGLE_CLIENT_ID}` +
+      `client_id=${clientId}` +
       `&redirect_uri=${encodeURIComponent(GMAIL_REDIRECT_URI)}` +
       `&response_type=code` +
       `&scope=${encodeURIComponent(GMAIL_SCOPE)}` +
@@ -640,7 +689,7 @@ ipcMain.handle('gmail:connect', async () => {
             if (!code) throw new Error('No code returned');
 
             const tokenBody = new URLSearchParams({
-              client_id: GOOGLE_CLIENT_ID,
+              client_id: clientId,
               code,
               code_verifier: pkce.verifier,
               redirect_uri: GMAIL_REDIRECT_URI,
