@@ -6,30 +6,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { Modal } from '@/components/Modal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { toast } from '@/components/Toast';
-import {
-  Building2,
-  Save,
-  Palette,
-  Bell,
-  FolderOpen,
-  MessageSquare,
-  Plus,
-  Pencil,
-  Trash2,
-  Lock,
-  ShieldCheck,
-  Eye,
-  EyeOff,
-  Image as ImageIcon,
-  Upload,
-  X,
-  AlertCircle,
-  Sparkles,
-  ExternalLink,
-  Cloud,
-  CloudOff,
-  RefreshCw,
-} from 'lucide-react';
+import { Building2, Save, Palette, Bell, FolderOpen, MessageSquare, Plus, Pencil, Trash2, Lock, ShieldCheck, Eye, EyeOff, Image as ImageIcon, Upload, X, CircleAlert as AlertCircle, Sparkles, ExternalLink, Cloud, CloudOff, RefreshCw } from 'lucide-react';
 import type { Settings as SettingsType, MessageTemplate, CashAuditLog } from '@/lib/types';
 import { createPasswordHash, verifyPassword, isLockedOut, recordFailedAttempt, resetAttempts, getRemainingAttempts } from '@/lib/cashSecurity';
 import { isElectron, nativeSelectLogo, nativeReadLogoAsDataURL, nativeRemoveLogo } from '@/lib/nativeFile';
@@ -771,6 +748,10 @@ export function SettingsPage() {
         onConfirm={handleTplDelete}
         onCancel={() => setTplDelete(null)}
       />
+
+      <p className="text-center text-sm text-slate-400 dark:text-slate-500 mt-8 mb-2 select-none">
+        Desenvolvido por Ricardo Martins
+      </p>
     </div>
   );
 }
