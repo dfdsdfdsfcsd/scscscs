@@ -160,11 +160,11 @@ export function DashboardPage({ onNavigate }: DashboardProps) {
       </div>
 
       {/* Shortcuts */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 mb-6 auto-rows-fr">
         {shortcuts.map((s) => { const Icon = s.icon; return (
-          <button key={s.label} onClick={() => onNavigate(s.page)} className="card p-4 flex items-center gap-3 hover:shadow-md transition-all hover:scale-[1.02]">
-            <div className="h-10 w-10 rounded-xl flex items-center justify-center text-white flex-shrink-0" style={{ backgroundColor: 'var(--color-primary)' }}><Icon className="h-5 w-5" /></div>
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300 text-left">{s.label}</span>
+          <button key={s.label} onClick={() => onNavigate(s.page)} className="card p-4 flex items-center gap-3 hover:shadow-md transition-shadow overflow-hidden min-h-[72px]">
+            <div className="h-10 w-10 rounded-xl flex items-center justify-center text-white flex-shrink-0" style={{ backgroundColor: 'var(--color-primary)' }}><Icon className="h-5 w-5 flex-shrink-0" /></div>
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300 text-left min-w-0 leading-snug">{s.label}</span>
           </button>
         ); })}
       </div>
