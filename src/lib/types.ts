@@ -34,6 +34,22 @@ export interface Settings {
   gdrive_last_sync: string | null;
   gdrive_root_folder_id: string | null;
   gdrive_root_folder_url: string | null;
+  gmail_connected: boolean;
+  gmail_account_email: string | null;
+  gmail_sender_name: string | null;
+}
+
+export interface EmailSendHistory {
+  id: string;
+  service_order_id: string | null;
+  order_code: string | null;
+  client_id: string | null;
+  recipient_email: string;
+  subject: string | null;
+  status: string;
+  error_message: string | null;
+  sent_at: string | null;
+  created_at: string;
 }
 
 export interface DocumentSyncLog {

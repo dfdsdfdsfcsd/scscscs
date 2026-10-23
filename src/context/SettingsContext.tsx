@@ -37,6 +37,9 @@ const defaultSettings: Settings = {
   gdrive_last_sync: null,
   gdrive_root_folder_id: null,
   gdrive_root_folder_url: null,
+  gmail_connected: false,
+  gmail_account_email: null,
+  gmail_sender_name: null,
 };
 
 interface SettingsContextValue {

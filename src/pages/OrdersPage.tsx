@@ -6,32 +6,15 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { EmptyState } from '@/components/EmptyState';
 import { toast } from '@/components/Toast';
 import { formatCurrency, formatDate, formatDateTime, todayISO, daysUntil } from '@/lib/utils';
-import {
-  Plus,
-  Search,
-  Trash2,
-  ClipboardList,
-  Clock,
-  CheckCircle,
-  Package,
-  AlertTriangle,
-  ChevronDown,
-  ChevronRight,
-  ListChecks,
-  Truck,
-  PackageCheck,
-  Image,
-  Printer,
-  X,
-  Save,
-  Settings,
-  RotateCcw,
-} from 'lucide-react';
+import { Plus, Search, Trash2, ClipboardList, Clock, CircleCheck as CheckCircle, Package, TriangleAlert as AlertTriangle, ChevronDown, ChevronRight, ListChecks, Truck, PackageCheck, Image, Printer, X, Save, Settings, RotateCcw, Mail, Send, History } from 'lucide-react';
 import type {
   ServiceOrder, OrderItem, ProductionStep, ProductionStepHistory,
   ChecklistTemplate, ChecklistTemplateItem, OrderChecklist,
-  Client, Budget, Appointment, Service, Campaign,
+  Client, Budget, Appointment, Service, Campaign, EmailSendHistory,
 } from '@/lib/types';
+import { isGmailAvailable, getGmailStatus, sendGmailEmail } from '@/lib/gmail';
+import { generateDocumentPDF } from '@/lib/pdfUtils';
+import { useSettings } from '@/context/SettingsContext';
 import { ClientSearchSelect } from '@/components/ClientSearchSelect';
 import { useSaving } from '@/lib/useSaving';
 
@@ -75,6 +58,7 @@ function makeOrderItemForm(): OrderItemForm {
 }
 
 export function OrdersPage() {
+  const { settings } = useSettings();
   const [tab, setTab] = useState<TabType>('orders');
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -96,6 +80,10 @@ export function OrdersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ServiceOrder | null>(null);
   const [deliveryConfirm, setDeliveryConfirm] = useState<ServiceOrder | null>(null);
+  const [emailModal, setEmailModal] = useState<ServiceOrder | null>(null);
+  const [emailRecipient, setEmailRecipient] = useState('');
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailHistory, setEmailHistory] = useState<EmailSendHistory[]>([]);
 
   // Delivery panel search
   const [deliverySearch, setDeliverySearch] = useState('');
@@ -283,16 +271,18 @@ export function OrdersPage() {
   const toggleExpand = async (orderId: string) => {
     if (expandedOrder === orderId) { setExpandedOrder(null); return; }
     setExpandedOrder(orderId);
-    const [{ data: itemsData }, { data: stepsData }, { data: clData }, { data: histData }] = await Promise.all([
+    const [{ data: itemsData }, { data: stepsData }, { data: clData }, { data: histData }, { data: emailHistData }] = await Promise.all([
       supabase.from('order_items').select('*').eq('order_id', orderId).order('created_at'),
       supabase.from('production_steps').select('*').eq('order_id', orderId).order('step_order'),
       supabase.from('order_checklists').select('*').eq('order_id', orderId).order('item_order'),
       supabase.from('production_step_history').select('*').in('step_id', ((await supabase.from('production_steps').select('id').eq('order_id', orderId)).data ?? []).map((s: { id: string }) => s.id)).order('changed_at', { ascending: false }),
+      supabase.from('email_send_history').select('*').eq('service_order_id', orderId).order('created_at', { ascending: false }),
     ]);
     setOrderItems((itemsData as OrderItem[]) ?? []);
     setProductionSteps((stepsData as ProductionStep[]) ?? []);
     setOrderChecklists((clData as OrderChecklist[]) ?? []);
     setStepHistory((histData as ProductionStepHistory[]) ?? []);
+    setEmailHistory((emailHistData as EmailSendHistory[]) ?? []);
   };
 
   const updateStepStatus = async (step: ProductionStep, newStatus: string) => {
@@ -356,6 +346,127 @@ export function OrdersPage() {
     toast('Baixa de entrega registrada', 'success');
     setDeliveryConfirm(null);
     load();
+  };
+
+  const openEmailModal = async (o: ServiceOrder) => {
+    const client = clients.find((c) => c.id === o.client_id);
+    if (!client?.email) {
+      toast('Este cliente ainda não possui um endereço de e-mail cadastrado.', 'warning');
+      return;
+    }
+    const status = await getGmailStatus();
+    if (!status.connected) {
+      toast('Conecte sua conta Google nas Configurações para utilizar este recurso.', 'warning');
+      return;
+    }
+    setEmailRecipient(client.email);
+    setEmailModal(o);
+  };
+
+  const handleSendEmail = async () => {
+    if (!emailModal) return;
+    const client = clients.find((c) => c.id === emailModal.client_id);
+    if (!client) return;
+    if (!emailRecipient.trim()) { toast('Informe o endereço de e-mail do destinatário', 'warning'); return; }
+
+    setEmailSending(true);
+    try {
+      const itemsText = orderItems.length > 0
+        ? orderItems.map((it) => `- ${it.name} (Qtd: ${it.quantity}) — ${formatCurrency(it.subtotal)}`).join('\n')
+        : 'Sem itens detalhados.';
+      const total = orderItems.reduce((s, it) => s + it.subtotal, 0);
+      const studioName = settings.fantasy_name || settings.studio_name || 'Estúdio';
+      const subject = `Ordem de Serviço ${emailModal.code} — ${studioName}`;
+      const body = [
+        `Olá, ${client.full_name}!`,
+        '',
+        `Segue em anexo a Ordem de Serviço ${emailModal.code} referente ao pedido: ${emailModal.title}.`,
+        '',
+        'Itens do pedido:',
+        itemsText,
+        total > 0 ? `\nValor total: ${formatCurrency(total)}` : '',
+        emailModal.due_date ? `\nPrazo de entrega: ${formatDate(emailModal.due_date)}` : '',
+        emailModal.delivery_method ? `Forma de entrega: ${emailModal.delivery_method}` : '',
+        '',
+        'Em caso de dúvidas, entre em contato com o estúdio.',
+        '',
+        'Atenciosamente,',
+        settings.gmail_sender_name || studioName,
+        settings.phone ? `Telefone: ${settings.phone}` : '',
+        settings.email ? `E-mail: ${settings.email}` : '',
+      ].filter(Boolean).join('\n');
+
+      const pdfSettings = {
+        studio_name: settings.studio_name,
+        fantasy_name: settings.fantasy_name,
+        tax_id: settings.tax_id,
+        address: settings.address,
+        phone: settings.phone,
+        email: settings.email,
+        logo_url: settings.logo_url,
+      };
+      const pdfBlob = generateDocumentPDF({
+        title: `Ordem de Serviço ${emailModal.code}`,
+        body: `${emailModal.title}\n\nCliente: ${client.full_name}\n${client.phone ? 'Telefone: ' + client.phone + '\n' : ''}\nItens:\n${itemsText}\n${total > 0 ? '\nValor total: ' + formatCurrency(total) : ''}${emailModal.due_date ? '\n\nPrazo de entrega: ' + formatDate(emailModal.due_date) : ''}${emailModal.delivery_method ? '\nForma de entrega: ' + emailModal.delivery_method : ''}${emailModal.notes ? '\n\nObservações:\n' + emailModal.notes : ''}`,
+        settings: pdfSettings,
+      });
+
+      const arrayBuffer = await pdfBlob.arrayBuffer();
+      const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+
+      const res = await sendGmailEmail({
+        to: emailRecipient.trim(),
+        subject,
+        body,
+        attachments: [{ filename: `OS-${emailModal.code}.pdf`, mimeType: 'application/pdf', data: pdfBase64 }],
+        senderName: settings.gmail_sender_name || undefined,
+      });
+
+      const now = new Date().toISOString();
+      if (res.success) {
+        await supabase.from('email_send_history').insert({
+          service_order_id: emailModal.id,
+          order_code: emailModal.code,
+          client_id: emailModal.client_id,
+          recipient_email: emailRecipient.trim(),
+          subject,
+          status: 'enviado',
+          sent_at: now,
+        });
+        toast('E-mail enviado com sucesso.', 'success');
+        setEmailModal(null);
+      } else {
+        await supabase.from('email_send_history').insert({
+          service_order_id: emailModal.id,
+          order_code: emailModal.code,
+          client_id: emailModal.client_id,
+          recipient_email: emailRecipient.trim(),
+          subject,
+          status: 'falhou',
+          error_message: res.error ?? 'Erro desconhecido',
+        });
+        toast('Não foi possível enviar o e-mail. Verifique a conexão e as configurações.', 'error');
+      }
+
+      if (expandedOrder === emailModal.id) {
+        const { data: histData } = await supabase.from('email_send_history').select('*').eq('service_order_id', emailModal.id).order('created_at', { ascending: false });
+        setEmailHistory((histData as EmailSendHistory[]) ?? []);
+      }
+    } catch {
+      toast('Erro ao enviar e-mail. Verifique sua conexão com a internet.', 'error');
+      if (emailModal) {
+        await supabase.from('email_send_history').insert({
+          service_order_id: emailModal.id,
+          order_code: emailModal.code,
+          client_id: emailModal.client_id,
+          recipient_email: emailRecipient.trim(),
+          subject: `Ordem de Serviço ${emailModal.code}`,
+          status: 'falhou',
+          error_message: 'Erro de conexão',
+        });
+      }
+    }
+    setEmailSending(false);
   };
 
   // Template management
@@ -582,7 +693,28 @@ export function OrdersPage() {
                           </button>
                         </div>
 
-                        <button onClick={() => openEdit(o)} className="btn-ghost text-xs"><Settings className="h-3 w-3" /> Editar pedido</button>
+                        <div className="flex flex-wrap gap-3">
+                          <button onClick={() => openEdit(o)} className="btn-ghost text-xs"><Settings className="h-3 w-3" /> Editar pedido</button>
+                          <button onClick={() => openEmailModal(o)} className="btn-ghost text-xs" style={{ color: 'var(--color-primary)' }}><Mail className="h-3 w-3" /> Enviar OS por e-mail</button>
+                        </div>
+
+                        {emailHistory.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2"><History className="h-4 w-4" /> Histórico de envios por e-mail</h4>
+                            <div className="space-y-1.5">
+                              {emailHistory.map((h) => (
+                                <div key={h.id} className="flex items-center justify-between text-xs card p-2 bg-white dark:bg-slate-900">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`badge ${h.status === 'enviado' ? 'badge-success' : h.status === 'falhou' ? 'badge-danger' : 'badge-neutral'} text-xs`}>{h.status === 'enviado' ? 'Enviado' : h.status === 'falhou' ? 'Falhou' : 'Pendente'}</span>
+                                    <span className="text-slate-600 dark:text-slate-300">{h.recipient_email}</span>
+                                    {h.error_message && <span className="text-red-500">— {h.error_message}</span>}
+                                  </div>
+                                  <span className="text-slate-400">{formatDateTime(h.created_at)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -814,6 +946,49 @@ export function OrdersPage() {
           <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300"><input type="checkbox" checked={templateForm.is_active} onChange={(e) => setTemplateForm({ ...templateForm, is_active: e.target.checked })} className="h-4 w-4 rounded accent-teal-600" /> Modelo ativo</label>
         </div>
         <div className="flex justify-end gap-3 mt-6"><button onClick={() => setTemplateModal(false)} className="btn-secondary">Cancelar</button><button onClick={handleSaveTemplate} className="btn-primary"><Save className="h-4 w-4" /> Salvar modelo</button></div>
+      </Modal>
+
+      {/* Email modal */}
+      <Modal open={!!emailModal} onClose={() => emailSending ? undefined : setEmailModal(null)} title="Enviar OS por e-mail" size="sm">
+        {emailModal && (() => {
+          const client = clients.find((c) => c.id === emailModal.client_id);
+          return (
+            <div className="space-y-4">
+              <div className="card p-4 bg-sky-50 dark:bg-sky-950/30 border-sky-200 dark:border-sky-800">
+                <p className="text-xs text-sky-600 dark:text-sky-400 uppercase mb-2">Confirme os dados do envio</p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-slate-500">Número da OS:</span><span className="font-mono font-medium">{emailModal.code}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Cliente:</span><span className="font-medium">{client?.full_name ?? '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Pedido:</span><span className="font-medium">{emailModal.title}</span></div>
+                </div>
+              </div>
+              <div>
+                <label className="label">Destinatário *</label>
+                <input className="input" type="email" placeholder="email@exemplo.com" value={emailRecipient} onChange={(e) => setEmailRecipient(e.target.value)} disabled={emailSending} />
+                <p className="text-xs text-slate-400 mt-1">O e-mail do cliente foi preenchido automaticamente. Você pode alterar se necessário.</p>
+              </div>
+              <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 p-3 text-xs text-slate-500 dark:text-slate-400">
+                <p className="font-medium text-slate-600 dark:text-slate-300 mb-1">Será enviado:</p>
+                <ul className="space-y-1">
+                  <li>- E-mail com mensagem profissional e dados do pedido</li>
+                  <li>- PDF da Ordem de Serviço em anexo</li>
+                  <li>- O número da OS será preservado (não é gerado um novo)</li>
+                </ul>
+              </div>
+              {emailSending && (
+                <div className="rounded-lg bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 p-3 flex items-center gap-2 text-sm text-sky-700 dark:text-sky-300">
+                  <Send className="h-4 w-4 animate-pulse" /> Enviando e-mail... Aguarde.
+                </div>
+              )}
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setEmailModal(null)} disabled={emailSending} className="btn-secondary">Cancelar</button>
+                <button onClick={handleSendEmail} disabled={emailSending || !emailRecipient.trim()} className="btn-primary">
+                  <Send className="h-4 w-4" /> {emailSending ? 'Enviando...' : 'Confirmar envio'}
+                </button>
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
 
       <ConfirmDialog open={!!deleteTarget} title="Excluir pedido" message={`Confirma a exclusão do pedido ${deleteTarget?.code}?`} onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} />

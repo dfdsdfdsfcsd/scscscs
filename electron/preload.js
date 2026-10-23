@@ -18,6 +18,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   gdriveStatus: () => ipcRenderer.invoke('gdrive:status'),
   gdriveGetRootUrl: () => ipcRenderer.invoke('gdrive:getRootFolderUrl'),
   gdriveUpload: (options) => ipcRenderer.invoke('gdrive:upload', options),
+  // Gmail
+  gmailConnect: () => ipcRenderer.invoke('gmail:connect'),
+  gmailDisconnect: () => ipcRenderer.invoke('gmail:disconnect'),
+  gmailStatus: () => ipcRenderer.invoke('gmail:status'),
+  gmailSendEmail: (options) => ipcRenderer.invoke('gmail:sendEmail', options),
+  gmailSendTest: (options) => ipcRenderer.invoke('gmail:sendTest', options),
   // Auto-update
   updateCheck: () => ipcRenderer.invoke('update:check'),
   updateInstall: () => ipcRenderer.invoke('update:install'),

@@ -535,6 +535,294 @@ ipcMain.handle('gdrive:upload', async (_event, options) => {
   }
 });
 
+// --- Gmail Email Integration ---
+
+const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
+const GMAIL_REDIRECT_URI = 'http://127.0.0.1:8494/gmail-callback';
+const GMAIL_TOKEN_FILE = path.join(app.getPath('userData'), 'gmail-token.json');
+
+function loadGmailToken() {
+  try {
+    if (fs.existsSync(GMAIL_TOKEN_FILE)) {
+      return JSON.parse(fs.readFileSync(GMAIL_TOKEN_FILE, 'utf-8'));
+    }
+  } catch {}
+  return null;
+}
+
+function saveGmailToken(token) {
+  try {
+    fs.writeFileSync(GMAIL_TOKEN_FILE, JSON.stringify(token), { mode: 0o600 });
+  } catch {}
+}
+
+function deleteGmailToken() {
+  try {
+    if (fs.existsSync(GMAIL_TOKEN_FILE)) fs.unlinkSync(GMAIL_TOKEN_FILE);
+  } catch {}
+}
+
+async function getValidGmailAccessToken() {
+  const token = loadGmailToken();
+  if (!token) throw new Error('Not connected to Gmail');
+  const now = Date.now();
+  if (token.expires_at && now > token.expires_at - 60000) {
+    if (token.refresh_token) {
+      const body = new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        refresh_token: token.refresh_token,
+        grant_type: 'refresh_token',
+      });
+      const res = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString(),
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Token refresh failed: ${errText}`);
+      }
+      const data = await res.json();
+      const newToken = {
+        ...token,
+        access_token: data.access_token,
+        expires_at: now + (data.expires_in || 3600) * 1000,
+      };
+      saveGmailToken(newToken);
+      return newToken.access_token;
+    }
+    throw new Error('Access token expired and no refresh token available');
+  }
+  return token.access_token;
+}
+
+function encodeBase64Url(data) {
+  return Buffer.from(data).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+ipcMain.handle('gmail:connect', async () => {
+  try {
+    const pkce = generatePKCE();
+    const state = Math.random().toString(36).slice(2);
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+      `client_id=${GOOGLE_CLIENT_ID}` +
+      `&redirect_uri=${encodeURIComponent(GMAIL_REDIRECT_URI)}` +
+      `&response_type=code` +
+      `&scope=${encodeURIComponent(GMAIL_SCOPE)}` +
+      `&code_challenge=${pkce.challenge}` +
+      `&code_challenge_method=S256` +
+      `&state=${state}` +
+      `&access_type=offline` +
+      `&prompt=consent`;
+
+    const authWin = new BrowserWindow({
+      width: 500,
+      height: 700,
+      modal: true,
+      parent: mainWindow,
+      webPreferences: { contextIsolation: true, nodeIntegration: false },
+    });
+
+    return new Promise((resolve) => {
+      let resolved = false;
+      const timeout = setTimeout(() => {
+        if (!resolved) { resolved = true; authWin.close(); resolve({ success: false, error: 'Tempo esgotado' }); }
+      }, 120000);
+
+      authWin.webContents.on('will-redirect', async (event, url) => {
+        if (url.startsWith(GMAIL_REDIRECT_URI)) {
+          event.preventDefault();
+          try {
+            const urlObj = new URL(url);
+            const code = urlObj.searchParams.get('code');
+            const returnedState = urlObj.searchParams.get('state');
+            if (returnedState !== state) throw new Error('State mismatch');
+            if (!code) throw new Error('No code returned');
+
+            const tokenBody = new URLSearchParams({
+              client_id: GOOGLE_CLIENT_ID,
+              code,
+              code_verifier: pkce.verifier,
+              redirect_uri: GMAIL_REDIRECT_URI,
+              grant_type: 'authorization_code',
+            });
+            const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: tokenBody.toString(),
+            });
+            if (!tokenRes.ok) {
+              const errText = await tokenRes.text();
+              throw new Error(`Token exchange failed: ${errText}`);
+            }
+            const tokenData = await tokenRes.json();
+
+            const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+              headers: { 'Authorization': `Bearer ${tokenData.access_token}` },
+            });
+            const userInfo = await userInfoRes.json();
+
+            const token = {
+              access_token: tokenData.access_token,
+              refresh_token: tokenData.refresh_token,
+              expires_at: Date.now() + (tokenData.expires_in || 3600) * 1000,
+              email: userInfo.email,
+            };
+            saveGmailToken(token);
+
+            resolved = true;
+            clearTimeout(timeout);
+            authWin.close();
+            resolve({ success: true, email: userInfo.email });
+          } catch (err) {
+            resolved = true;
+            clearTimeout(timeout);
+            authWin.close();
+            resolve({ success: false, error: String(err) });
+          }
+        }
+      });
+
+      authWin.on('closed', () => {
+        if (!resolved) { resolved = true; clearTimeout(timeout); resolve({ success: false, error: 'Janela fechada' }); }
+      });
+
+      authWin.loadURL(authUrl);
+    });
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+});
+
+ipcMain.handle('gmail:disconnect', async () => {
+  deleteGmailToken();
+  return { success: true };
+});
+
+ipcMain.handle('gmail:status', async () => {
+  const token = loadGmailToken();
+  if (!token) return { connected: false };
+  try {
+    await getValidGmailAccessToken();
+    return { connected: true, email: token.email };
+  } catch {
+    return { connected: false, email: token.email, error: 'Token expired' };
+  }
+});
+
+ipcMain.handle('gmail:sendEmail', async (_event, options) => {
+  try {
+    const { to, subject, body, attachments, senderName } = options;
+    if (!to || !subject) return { success: false, error: 'Destinatário e assunto são obrigatórios' };
+
+    const accessToken = await getValidGmailAccessToken();
+
+    const boundary = 'b' + Math.random().toString(36).slice(2);
+    const lines = [];
+
+    const fromHeader = senderName
+      ? `From: ${senderName} <${loadGmailToken().email}>`
+      : `From: ${loadGmailToken().email}`;
+    lines.push(fromHeader);
+    lines.push(`To: ${to}`);
+    lines.push(`Subject: ${subject}`);
+    lines.push('Content-Type: multipart/mixed; boundary="' + boundary + '"');
+    lines.push('');
+
+    // Text body part
+    lines.push('--' + boundary);
+    lines.push('Content-Type: text/plain; charset=UTF-8');
+    lines.push('Content-Transfer-Encoding: base64');
+    lines.push('');
+    lines.push(encodeBase64Url(body));
+
+    // Attachments
+    if (attachments && attachments.length > 0) {
+      for (const att of attachments) {
+        lines.push('--' + boundary);
+        lines.push(`Content-Type: ${att.mimeType || 'application/pdf'}`);
+        lines.push('Content-Transfer-Encoding: base64');
+        lines.push(`Content-Disposition: attachment; filename="${att.filename}"`);
+        lines.push('');
+        lines.push(att.data);
+      }
+    }
+
+    lines.push('--' + boundary + '--');
+
+    const raw = lines.join('\r\n');
+    const encoded = encodeBase64Url(raw);
+
+    const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ raw: encoded }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      return { success: false, error: `Gmail API error: ${errText}` };
+    }
+
+    const data = await res.json();
+    return { success: true, messageId: data.id };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+});
+
+ipcMain.handle('gmail:sendTest', async (_event, options) => {
+  try {
+    const { to, senderName } = options;
+    const accessToken = await getValidGmailAccessToken();
+    const token = loadGmailToken();
+
+    const boundary = 'b' + Math.random().toString(36).slice(2);
+    const fromHeader = senderName
+      ? `From: ${senderName} <${token.email}>`
+      : `From: ${token.email}`;
+    const testBody = 'Este é um e-mail de teste enviado pelo StudioPro. Se você recebeu esta mensagem, a configuração do Gmail está funcionando corretamente.';
+    const lines = [
+      fromHeader,
+      `To: ${to}`,
+      'Subject: Teste de envio - StudioPro',
+      'Content-Type: multipart/mixed; boundary="' + boundary + '"',
+      '',
+      '--' + boundary,
+      'Content-Type: text/plain; charset=UTF-8',
+      'Content-Transfer-Encoding: base64',
+      '',
+      encodeBase64Url(testBody),
+      '--' + boundary + '--',
+    ];
+
+    const raw = lines.join('\r\n');
+    const encoded = encodeBase64Url(raw);
+
+    const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ raw: encoded }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      return { success: false, error: `Gmail API error: ${errText}` };
+    }
+
+    const data = await res.json();
+    return { success: true, messageId: data.id };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+});
+
 // --- Auto-update IPC handlers ---
 
 ipcMain.handle('update:check', async () => {

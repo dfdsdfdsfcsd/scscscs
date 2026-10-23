@@ -6,11 +6,12 @@ import { EmptyState } from '@/components/EmptyState';
 import { Modal } from '@/components/Modal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { toast } from '@/components/Toast';
-import { Building2, Save, Palette, Bell, FolderOpen, MessageSquare, Plus, Pencil, Trash2, Lock, ShieldCheck, Eye, EyeOff, Image as ImageIcon, Upload, X, CircleAlert as AlertCircle, Sparkles, ExternalLink, Cloud, CloudOff, RefreshCw } from 'lucide-react';
+import { Building2, Save, Palette, Bell, FolderOpen, MessageSquare, Plus, Pencil, Trash2, Lock, ShieldCheck, Eye, EyeOff, Image as ImageIcon, Upload, X, CircleAlert as AlertCircle, Sparkles, ExternalLink, Cloud, CloudOff, RefreshCw, Mail, MailCheck, Unlink } from 'lucide-react';
 import type { Settings as SettingsType, MessageTemplate, CashAuditLog } from '@/lib/types';
 import { createPasswordHash, verifyPassword, isLockedOut, recordFailedAttempt, resetAttempts, getRemainingAttempts } from '@/lib/cashSecurity';
 import { isElectron, nativeSelectLogo, nativeReadLogoAsDataURL, nativeRemoveLogo } from '@/lib/nativeFile';
 import { isGDriveAvailable, connectGDrive, disconnectGDrive, getGDriveStatus, getGDriveRootUrl } from '@/lib/googleDrive';
+import { isGmailAvailable, connectGmail, disconnectGmail, getGmailStatus, sendGmailTest } from '@/lib/gmail';
 
 const colorPresets = [
   { primary: '#0f766e', accent: '#f59e0b', name: 'Esmeralda' },
@@ -21,7 +22,7 @@ const colorPresets = [
   { primary: '#0c4a6e', accent: '#f59e0b', name: 'Azul profundo' },
 ];
 
-type Tab = 'identity' | 'appearance' | 'preferences' | 'templates' | 'cashSecurity' | 'ai' | 'gdrive';
+type Tab = 'identity' | 'appearance' | 'preferences' | 'templates' | 'cashSecurity' | 'ai' | 'gdrive' | 'gmail';
 
 export function SettingsPage() {
   const { settings, loading, save } = useSettings();
@@ -45,6 +46,10 @@ export function SettingsPage() {
   const [gdriveStatus, setGdriveStatus] = useState<{ connected: boolean; email?: string }>({ connected: false });
   const [gdriveConnecting, setGdriveConnecting] = useState(false);
   const [gdriveRootUrl, setGdriveRootUrl] = useState<string | null>(null);
+  const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; email?: string; error?: string }>({ connected: false });
+  const [gmailConnecting, setGmailConnecting] = useState(false);
+  const [gmailTestEmail, setGmailTestEmail] = useState('');
+  const [gmailSending, setGmailSending] = useState(false);
 
   useEffect(() => {
     if (form.logo_url) {
@@ -131,6 +136,12 @@ export function SettingsPage() {
     }
   }, [tab]);
 
+  useEffect(() => {
+    if (tab === 'gmail') {
+      getGmailStatus().then(setGmailStatus);
+    }
+  }, [tab]);
+
   if (loading) {
     return <div className="flex items-center justify-center py-20 text-slate-400">Carregando configurações...</div>;
   }
@@ -193,6 +204,7 @@ export function SettingsPage() {
     { id: 'cashSecurity', label: 'Segurança do Caixa', icon: Lock },
     { id: 'ai', label: 'Inteligência Artificial', icon: Sparkles },
     { id: 'gdrive', label: 'Google Drive', icon: Cloud },
+    { id: 'gmail', label: 'Envio de e-mails', icon: Mail },
   ];
 
   return (
@@ -737,6 +749,139 @@ export function SettingsPage() {
               <li className="flex items-start gap-2"><ShieldCheck className="h-4 w-4 text-teal-500 flex-shrink-0 mt-0.5" /> Desconectar o Google Drive não apaga arquivos já enviados</li>
               <li className="flex items-start gap-2"><ShieldCheck className="h-4 w-4 text-teal-500 flex-shrink-0 mt-0.5" /> O aplicativo continua funcionando localmente sem conexão com o Drive</li>
             </ul>
+          </div>
+        </div>
+      )}
+
+      {tab === 'gmail' && (
+        <div className="space-y-6">
+          <div className="card p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-10 w-10 rounded-xl flex items-center justify-center text-white" style={{ backgroundColor: 'var(--color-primary)' }}>
+                <Mail className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Envio de e-mails</h3>
+                <p className="text-sm text-slate-400">Conecte sua conta Google para enviar Ordens de Serviço por e-mail</p>
+              </div>
+            </div>
+
+            {!isGmailAvailable() && (
+              <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-4 mb-4">
+                <p className="text-sm text-amber-700 dark:text-amber-300">O envio por e-mail está disponível apenas no aplicativo desktop. As demais funcionalidades do StudioPro continuam normais.</p>
+              </div>
+            )}
+
+            {gmailStatus.connected ? (
+              <div className="space-y-4">
+                <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-4 flex items-center gap-3">
+                  <ShieldCheck className="h-5 w-5 text-emerald-600 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Conectado como {gmailStatus.email}</p>
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">Escopo: envio de e-mails (gmail.send)</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="label">Nome do remetente (opcional)</label>
+                  <input className="input" placeholder="Ex: Estúdio Fotográfico Silva" value={form.gmail_sender_name ?? ''} onChange={(e) => setForm({ ...form, gmail_sender_name: e.target.value })} />
+                  <p className="text-xs text-slate-400 mt-1">Aparece como nome de quem envia o e-mail. O endereço será sempre o da conta Google conectada.</p>
+                </div>
+
+                <div className="rounded-xl border-2 border-slate-200 dark:border-slate-700 p-4">
+                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Teste de envio</h4>
+                  <p className="text-xs text-slate-400 mb-3">Envie um e-mail de teste para verificar se a conexão está funcionando.</p>
+                  <div className="flex gap-2">
+                    <input className="input" placeholder="E-mail para teste" value={gmailTestEmail} onChange={(e) => setGmailTestEmail(e.target.value)} />
+                    <button
+                      onClick={async () => {
+                        if (!gmailTestEmail.trim()) { toast('Informe um endereço de e-mail para o teste', 'warning'); return; }
+                        setGmailSending(true);
+                        try {
+                          const res = await sendGmailTest(gmailTestEmail.trim(), form.gmail_sender_name ?? undefined);
+                          if (res.success) {
+                            toast('E-mail de teste enviado com sucesso', 'success');
+                          } else {
+                            toast(res.error ?? 'Não foi possível enviar o e-mail de teste', 'error');
+                          }
+                        } catch {
+                          toast('Erro ao enviar e-mail de teste. Verifique a conexão.', 'error');
+                        }
+                        setGmailSending(false);
+                      }}
+                      disabled={gmailSending || !gmailTestEmail.trim()}
+                      className="btn-secondary whitespace-nowrap"
+                    >
+                      {gmailSending ? <><RefreshCw className="h-4 w-4 animate-spin" /> Enviando...</> : <><MailCheck className="h-4 w-4" /> Enviar teste</>}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={async () => {
+                      await disconnectGmail();
+                      await save({ gmail_connected: false, gmail_account_email: null });
+                      setGmailStatus({ connected: false });
+                      toast('Conta Google desconectada. O envio de e-mails foi desativado.', 'info');
+                    }}
+                    className="btn-secondary text-sm text-red-500"
+                  >
+                    <Unlink className="h-4 w-4" /> Desconectar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-xl border-2 border-slate-200 dark:border-slate-700 p-4">
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">Ao conectar, o aplicativo irá:</p>
+                  <ul className="space-y-2 text-sm text-slate-500 dark:text-slate-400">
+                    <li className="flex items-start gap-2"><ShieldCheck className="h-4 w-4 text-teal-500 flex-shrink-0 mt-0.5" /> Solicitar autorização OAuth segura com PKCE — sua senha Google não é solicitada</li>
+                    <li className="flex items-start gap-2"><ShieldCheck className="h-4 w-4 text-teal-500 flex-shrink-0 mt-0.5" /> Acessar apenas o envio de e-mails (escopo gmail.send)</li>
+                    <li className="flex items-start gap-2"><ShieldCheck className="h-4 w-4 text-teal-500 flex-shrink-0 mt-0.5" /> Enviar Ordens de Serviço em PDF diretamente do aplicativo</li>
+                    <li className="flex items-start gap-2"><ShieldCheck className="h-4 w-4 text-teal-500 flex-shrink-0 mt-0.5" /> Não enviar e-mails automaticamente sem sua confirmação</li>
+                  </ul>
+                </div>
+                <button
+                  onClick={async () => {
+                    setGmailConnecting(true);
+                    try {
+                      const res = await connectGmail();
+                      if (res.success) {
+                        await save({ gmail_connected: true, gmail_account_email: res.email ?? null });
+                        setGmailStatus({ connected: true, email: res.email });
+                        toast(`Conectado como ${res.email}`, 'success');
+                      } else {
+                        toast(res.error ?? 'Erro ao conectar', 'error');
+                      }
+                    } catch { toast('Erro ao conectar com Gmail', 'error'); }
+                    setGmailConnecting(false);
+                  }}
+                  disabled={gmailConnecting || !isGmailAvailable()}
+                  className="btn-primary"
+                >
+                  {gmailConnecting ? <><RefreshCw className="h-4 w-4 animate-spin" /> Conectando...</> : <><Mail className="h-4 w-4" /> Conectar Gmail</>}
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="card p-6">
+            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Segurança e privacidade</h4>
+            <ul className="space-y-2 text-sm text-slate-500 dark:text-slate-400">
+              <li className="flex items-start gap-2"><ShieldCheck className="h-4 w-4 text-teal-500 flex-shrink-0 mt-0.5" /> Os tokens de acesso são armazenados com segurança no ambiente do Electron, nunca no navegador, localStorage ou código do aplicativo</li>
+              <li className="flex items-start gap-2"><ShieldCheck className="h-4 w-4 text-teal-500 flex-shrink-0 mt-0.5" /> A autenticação usa OAuth 2.0 com PKCE — não solicitamos sua senha Google</li>
+              <li className="flex items-start gap-2"><ShieldCheck className="h-4 w-4 text-teal-500 flex-shrink-0 mt-0.5" /> O aplicativo envia e-mails apenas quando você clica em "Enviar OS por e-mail"</li>
+              <li className="flex items-start gap-2"><ShieldCheck className="h-4 w-4 text-teal-500 flex-shrink-0 mt-0.5" /> O histórico de envios é registrado para consulta dentro de cada Ordem de Serviço</li>
+              <li className="flex items-start gap-2"><ShieldCheck className="h-4 w-4 text-teal-500 flex-shrink-0 mt-0.5" /> Os limites de envio do Gmail são respeitados — falhas de cota ou autenticação são exibidas no histórico</li>
+            </ul>
+          </div>
+
+          <div className="card p-6 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800">
+            <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2">Configuração necessária (desenvolvedor)</h4>
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              Para que o envio de e-mails funcione, é necessário configurar um projeto no Google Cloud Console com OAuth 2.0 e a Gmail API ativada. O Client ID OAuth deve ser definido na constante GOOGLE_CLIENT_ID no arquivo electron/main.js. Consulte o README do projeto para instruções detalhadas.
+            </p>
           </div>
         </div>
       )}
