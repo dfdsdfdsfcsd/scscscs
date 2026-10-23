@@ -43,7 +43,7 @@ function createWindow() {
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    title: 'Estúdio Fotográfico — Gestão',
+    title: 'StudioPro',
     icon: path.join(__dirname, 'build', 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -229,7 +229,7 @@ const GOOGLE_CLIENT_ID = '1234567890-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googl
 const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const REDIRECT_URI = 'http://127.0.0.1:8493/callback';
 const TOKEN_FILE = path.join(app.getPath('userData'), 'gdrive-token.json');
-const ROOT_FOLDER_NAME = 'Estúdio Fotográfico — Gestão';
+const ROOT_FOLDER_NAME = 'StudioPro';
 const CATEGORY_FOLDERS = [
   'Contratos',
   'Autorizações de Uso de Imagem',

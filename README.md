@@ -1,6 +1,6 @@
-# Estúdio Fotográfico — Gestão
+# StudioPro
 
-Sistema completo de gestão para estúdios fotográficos.
+Sistema de Gestão para Estúdios Fotográficos.
 
 ## Módulos
 
@@ -51,15 +51,15 @@ npm run electron:build:win
 
 3. O instalador será gerado em:
 ```
-release/EstudioFotografico-Setup-1.0.0.exe
+release/StudioPro-Setup-24.1.0.exe
 ```
 
 ### Instalação no Windows
 
-1. Execute o arquivo `EstudioFotografico-Setup-1.0.0.exe`
+1. Execute o arquivo `StudioPro-Setup-24.1.0.exe`
 2. Escolha o diretório de instalação (ou use o padrão)
 3. Atalhos serão criados na Área de Trabalho e no Menu Iniciar
-4. O aplicativo aparecerá como "Estúdio Fotográfico"
+4. O aplicativo aparecerá como "StudioPro"
 
 ### Desenvolvimento com Electron
 
@@ -79,7 +79,7 @@ Para gerar o executável sem criar o instalador NSIS:
 npm run electron:pack
 ```
 
-O resultado estará em `release/win-unpacked/EstudioFotograficoGestao.exe`.
+O resultado estará em `release/win-unpacked/StudioPro.exe`.
 
 ## Estrutura
 

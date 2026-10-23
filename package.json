@@ -1,9 +1,9 @@
 {
-  "name": "estudio-fotografico-gestao",
+  "name": "studiopro",
   "private": true,
   "version": "24.1.0",
-  "description": "Sistema de gestão para estúdios fotográficos",
-  "author": "Estúdio Fotográfico",
+  "description": "Sistema de Gestão para Estúdios Fotográficos",
+  "author": "StudioPro",
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
@@ -49,7 +49,7 @@
   },
   "build": {
     "appId": "com.estudiofotografico.gestao",
-    "productName": "Estudio Fotografico Gestao",
+    "productName": "StudioPro",
     "directories": {
       "output": "release",
       "buildResources": "electron/build"
@@ -69,7 +69,7 @@
         }
       ],
       "icon": "electron/build/icon.ico",
-      "artifactName": "EstudioFotografico-Setup-${version}.exe"
+      "artifactName": "StudioPro-Setup-${version}.exe"
     },
     "nsis": {
       "oneClick": false,
@@ -77,8 +77,8 @@
       "perMachine": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Estúdio Fotográfico",
-      "uninstallDisplayName": "Estúdio Fotográfico — Gestão",
+      "shortcutName": "StudioPro",
+      "uninstallDisplayName": "StudioPro",
       "installerLanguages": [
         "pt_BR"
       ],

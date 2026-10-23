@@ -58,7 +58,7 @@ export function generateAuthorizationDocument(
   auth: ImageAuthorization,
   settings: Settings
 ): string {
-  const studioName = settings.studio_name || 'Estúdio Fotográfico';
+  const studioName = settings.studio_name || 'StudioPro';
   const studioTaxId = settings.tax_id || '____';
   const studioAddress = settings.address || '____';
   const studioPhone = settings.phone || '____';

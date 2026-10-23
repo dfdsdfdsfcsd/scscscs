@@ -5,7 +5,7 @@ import { nativeResolveLogoPath, nativeReadLogoAsDataURL } from '@/lib/nativeFile
 
 const defaultSettings: Settings = {
   id: '',
-  studio_name: 'Meu Estúdio',
+  studio_name: 'StudioPro',
   fantasy_name: null,
   tax_id: null,
   address: null,

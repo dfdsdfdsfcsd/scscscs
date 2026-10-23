@@ -193,7 +193,7 @@ export function Sidebar({ currentPage, onNavigate, collapsed, onToggleCollapse }
     >
       <div className="flex items-center gap-3 px-4 py-5 border-b border-slate-200 dark:border-slate-800 h-16">
         {settings.logo_url ? (
-          <img src={settings.logo_url} alt={settings.studio_name || 'Estúdio'} className="h-10 w-10 flex-shrink-0 rounded-xl object-contain" />
+          <img src={settings.logo_url} alt={settings.studio_name || 'StudioPro'} className="h-10 w-10 flex-shrink-0 rounded-xl object-contain" />
         ) : (
           <div
             className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-white"
@@ -205,9 +205,9 @@ export function Sidebar({ currentPage, onNavigate, collapsed, onToggleCollapse }
         {!collapsed && (
           <div className="overflow-hidden">
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-              {settings.studio_name || 'Estúdio'}
+              {settings.studio_name || 'StudioPro'}
             </p>
-            <p className="truncate text-xs text-slate-400">Gestão Fotográfica</p>
+            <p className="truncate text-xs text-slate-400">Sistema de Gestão</p>
           </div>
         )}
       </div>
