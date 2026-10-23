@@ -15,10 +15,6 @@
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && cross-env ELECTRON_IS_DEV=1 electron electron/main.js\"",
     "electron:build": "vite build && electron-builder",
     "electron:build:win": "vite build && electron-builder --win --x64",
-    "electron:build:mac": "vite build && electron-builder --mac",
-    "electron:build:mac:intel": "vite build && electron-builder --mac --x64",
-    "electron:build:mac:arm": "vite build && electron-builder --mac --arm64",
-    "electron:build:mac:universal": "vite build && electron-builder --mac --universal",
     "electron:pack": "vite build && electron-builder --dir",
     "postinstall": "electron-builder install-app-deps"
   },
@@ -74,34 +70,6 @@
       ],
       "icon": "electron/build/icon.ico",
       "artifactName": "StudioPro-Setup-${version}.exe"
-    },
-    "mac": {
-      "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        }
-      ],
-      "icon": "electron/build/icon.icns",
-      "artifactName": "StudioPro-${version}.${ext}",
-      "category": "public.app-category.business",
-      "hardenedRuntime": true,
-      "gatekeeperAssess": false,
-      "entitlements": "electron/build/entitlements.mac.plist",
-      "entitlementsInherit": "electron/build/entitlements.mac.plist",
-      "extendInfo": {
-        "LSMinimumSystemVersion": "11.0.0"
-      }
-    },
-    "dmg": {
-      "title": "StudioPro ${version}",
-      "contents": [
-        { "x": 130, "y": 220 },
-        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
-      ]
     },
     "nsis": {
       "oneClick": false,

@@ -509,7 +509,7 @@ export function AuthorizationsPage({ preselectClientId, preselectAuthId, onConsu
             {form.materials?.other_materials && (
               <div className="mt-3"><label className="label">Descreva outros materiais</label><input className="input" value={form.other_materials_text ?? ''} onChange={(e) => setForm({ ...form, other_materials_text: e.target.value })} /></div>
             )}
-            <div className="mt-3"><label className="label">Galeria/arquivos/pasta relacionada</label><input className="input" placeholder="Ex: Ensaio Gestante Maria - Pasta /Fotos/Maria" value={form.gallery_ref ?? ''} onChange={(e) => setForm({ ...form, gallery_ref: e.target.value })} /></div>
+            <div className="mt-3"><label className="label">Galeria/arquivos/pasta relacionada</label><input className="input" placeholder="Ex: Ensaio Gestante Maria - Pasta C:\Fotos\Maria" value={form.gallery_ref ?? ''} onChange={(e) => setForm({ ...form, gallery_ref: e.target.value })} /></div>
             {clientFolders.length > 0 && (
               <div className="mt-3">
                 <label className="label">Vincular à pasta de fotos cadastrada</label>

@@ -885,7 +885,7 @@ export function ClientsPage({ onNavigate, onCreateAuthorization, onViewAuthoriza
                     <div className="sm:col-span-2">
                       <label className="label">Caminho da pasta</label>
                       <div className="flex gap-2">
-                        <input className="input" placeholder="Ex: /Fotos/Clientes/Maria ou C:\Fotos\Clientes\Maria" value={newFolderPath} onChange={(e) => setNewFolderPath(e.target.value)} />
+                        <input className="input" placeholder="Ex: C:\Fotos\Clientes\Maria" value={newFolderPath} onChange={(e) => setNewFolderPath(e.target.value)} />
                         {isElectron() && <button type="button" onClick={() => pickFolderPath('new')} className="btn-secondary px-3 whitespace-nowrap"><FolderOpen className="h-4 w-4" /> Procurar</button>}
                       </div>
                     </div>
