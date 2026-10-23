@@ -5,24 +5,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { toast } from '@/components/Toast';
 import { formatDateTime, todayISO } from '@/lib/utils';
-import {
-  HardDrive,
-  Download,
-  Upload,
-  Database,
-  FileText,
-  TriangleAlert as AlertTriangle,
-  Activity,
-  Wifi,
-  WifiOff,
-  Cloud,
-  CloudOff,
-  CheckCircle,
-  XCircle,
-  RefreshCw,
-  ClipboardList,
-  ShieldCheck,
-} from 'lucide-react';
+import { HardDrive, Download, Upload, Database, FileText, TriangleAlert as AlertTriangle, Activity, Wifi, WifiOff, Cloud, CloudOff, CircleCheck as CheckCircle, Circle as XCircle, RefreshCw, ClipboardList, ShieldCheck } from 'lucide-react';
 import type { ActivityLog } from '@/lib/types';
 import { isGDriveAvailable, getGDriveStatus } from '@/lib/googleDrive';
 
@@ -248,7 +231,7 @@ export function BackupPage() {
 
   const runDiagnostics = async () => {
     setDiagLoading(true);
-    const version = '1.0.0';
+    const version = '24.1.0';
 
     let supabaseOk = false;
     let supabaseError: string | undefined;
@@ -550,7 +533,7 @@ export function BackupPage() {
               <HardDrive className="h-5 w-5 text-slate-400" />
               <div>
                 <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Versão instalada</p>
-                <p className="text-xs text-slate-400">{diag.appVersion}</p>
+                <p className="text-xs text-slate-400">{diag.appVersion.replace(/\.0$/, '')}</p>
               </div>
             </div>
 
