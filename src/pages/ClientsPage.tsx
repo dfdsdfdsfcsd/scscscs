@@ -15,28 +15,7 @@ import {
   daysUntil,
   toLocalISODate,
 } from '@/lib/utils';
-import {
-  Plus,
-  Search,
-  Pencil,
-  Trash2,
-  Users,
-  Eye,
-  FolderOpen,
-  MessageCircle,
-  Copy,
-  Baby,
-  History,
-  Paperclip,
-  Calendar,
-  AlertTriangle,
-  CheckCircle,
-  ExternalLink,
-  RefreshCw,
-  FileText,
-  ShieldCheck,
-  ShieldAlert,
-} from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Users, Eye, FolderOpen, MessageCircle, Copy, Baby, History, Paperclip, Calendar, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, ExternalLink, RefreshCw, FileText, ShieldCheck, ShieldAlert } from 'lucide-react';
 import {
   nativeSelectFile,
   nativeSelectFolder,
@@ -264,11 +243,23 @@ export function ClientsPage({ onNavigate, onCreateAuthorization, onViewAuthoriza
   }, [loadClients]);
 
   const filtered = clients.filter((c) => {
+    const q = search.trim().toLowerCase().replace(/\s+/g, ' ');
+    const cpfClean = (c.cpf ?? '').replace(/\D/g, '');
+    const cnpjClean = (c.cnpj ?? '').replace(/\D/g, '');
+    const phoneClean = (c.phone ?? '').replace(/\D/g, '');
+    const whatsappClean = (c.whatsapp ?? '').replace(/\D/g, '');
+    const searchClean = search.replace(/\D/g, '');
     const matchesSearch =
-      c.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      c.code.toLowerCase().includes(search.toLowerCase()) ||
-      (c.phone ?? '').includes(search) ||
-      (c.email ?? '').toLowerCase().includes(search.toLowerCase());
+      c.full_name.toLowerCase().includes(q) ||
+      c.code.toLowerCase().includes(q) ||
+      (c.email ?? '').toLowerCase().includes(q) ||
+      (c.city ?? '').toLowerCase().includes(q) ||
+      (searchClean.length > 0 && (
+        cpfClean.includes(searchClean) ||
+        cnpjClean.includes(searchClean) ||
+        phoneClean.includes(searchClean) ||
+        whatsappClean.includes(searchClean)
+      ));
     const matchesStatus = !filterStatus || c.status === filterStatus;
     return matchesSearch && matchesStatus;
   });

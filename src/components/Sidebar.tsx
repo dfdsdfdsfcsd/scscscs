@@ -13,6 +13,7 @@ import {
   Bell,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Camera as CameraLogo,
   ShieldCheck,
   Truck,
@@ -62,33 +63,79 @@ interface SidebarProps {
   onToggleCollapse: () => void;
 }
 
-const navItems: { page: Page; label: string; icon: typeof LayoutDashboard }[] = [
-  { page: 'dashboard', label: 'Painel inicial', icon: LayoutDashboard },
-  { page: 'clients', label: 'Clientes', icon: Users },
-  { page: 'agenda', label: 'Agenda e calendário', icon: Calendar },
-  { page: 'services', label: 'Serviços e produtos', icon: Camera },
-  { page: 'budgets', label: 'Orçamentos', icon: FileText },
-  { page: 'orders', label: 'Ordens de serviço', icon: ClipboardList },
-  { page: 'documents', label: 'Contratos e documentos', icon: Receipt },
-  { page: 'authorizations', label: 'Autorizações de imagem', icon: ShieldCheck },
-  { page: 'cash', label: 'Caixa diário', icon: Wallet },
-  { page: 'financial', label: 'Fluxo financeiro', icon: TrendingUp },
-  { page: 'alerts', label: 'Central de alertas', icon: Bell },
-  { page: 'suppliers', label: 'Fornecedores', icon: Truck },
-  { page: 'campaigns', label: 'Campanhas e rentabilidade', icon: Megaphone },
-  { page: 'commissions', label: 'Comissões', icon: Percent },
-  { page: 'professionals', label: 'Profissionais', icon: UserCog },
-  { page: 'inventory', label: 'Estoque de materiais', icon: Package },
-  { page: 'resources', label: 'Salas e equipamentos', icon: DoorOpen },
-  { page: 'crm', label: 'CRM e histórico', icon: Contact },
-  { page: 'settings', label: 'Configurações', icon: SettingsIcon },
-  { page: 'sync', label: 'Sincronização Google Drive', icon: Cloud },
-  { page: 'backup', label: 'Backup e restauração', icon: HardDrive },
+type NavItem = { page: Page; label: string; icon: typeof LayoutDashboard };
+type NavGroup = { title: string; items: NavItem[] };
+
+const navGroups: NavGroup[] = [
+  { title: '', items: [{ page: 'dashboard', label: 'Painel inicial', icon: LayoutDashboard }] },
+  {
+    title: 'Atendimento',
+    items: [
+      { page: 'clients', label: 'Clientes', icon: Users },
+      { page: 'agenda', label: 'Agenda e calendário', icon: Calendar },
+      { page: 'crm', label: 'CRM e histórico', icon: Contact },
+    ],
+  },
+  {
+    title: 'Vendas',
+    items: [
+      { page: 'services', label: 'Serviços e produtos', icon: Camera },
+      { page: 'budgets', label: 'Orçamentos', icon: FileText },
+      { page: 'campaigns', label: 'Campanhas e rentabilidade', icon: Megaphone },
+    ],
+  },
+  {
+    title: 'Produção',
+    items: [
+      { page: 'orders', label: 'Ordens de serviço', icon: ClipboardList },
+      { page: 'inventory', label: 'Estoque de materiais', icon: Package },
+      { page: 'resources', label: 'Salas e equipamentos', icon: DoorOpen },
+      { page: 'professionals', label: 'Profissionais', icon: UserCog },
+      { page: 'suppliers', label: 'Fornecedores', icon: Truck },
+    ],
+  },
+  {
+    title: 'Financeiro',
+    items: [
+      { page: 'cash', label: 'Caixa diário', icon: Wallet },
+      { page: 'financial', label: 'Fluxo financeiro', icon: TrendingUp },
+      { page: 'commissions', label: 'Comissões', icon: Percent },
+    ],
+  },
+  {
+    title: 'Documentos',
+    items: [
+      { page: 'documents', label: 'Contratos e documentos', icon: Receipt },
+      { page: 'authorizations', label: 'Autorizações de imagem', icon: ShieldCheck },
+    ],
+  },
+  {
+    title: 'Administração',
+    items: [
+      { page: 'alerts', label: 'Central de alertas', icon: Bell },
+      { page: 'settings', label: 'Configurações', icon: SettingsIcon },
+      { page: 'sync', label: 'Sincronização Google Drive', icon: Cloud },
+      { page: 'backup', label: 'Backup e restauração', icon: HardDrive },
+    ],
+  },
 ];
 
 export function Sidebar({ currentPage, onNavigate, collapsed, onToggleCollapse }: SidebarProps) {
   const { settings, toggleTheme } = useSettings();
   const [alertCount, setAlertCount] = useState(0);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
+    const all = new Set<string>();
+    navGroups.forEach((g) => { if (g.title) all.add(g.title); });
+    return all;
+  });
+
+  useEffect(() => {
+    for (const g of navGroups) {
+      if (g.title && g.items.some((i) => i.page === currentPage) && !expandedGroups.has(g.title)) {
+        setExpandedGroups((prev) => new Set(prev).add(g.title));
+      }
+    }
+  }, [currentPage]);
 
   useEffect(() => {
     const loadAlertCount = async () => {
@@ -166,30 +213,60 @@ export function Sidebar({ currentPage, onNavigate, collapsed, onToggleCollapse }
       </div>
 
       <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = currentPage === item.page;
+        {navGroups.map((group) => {
+          const hasTitle = group.title.length > 0;
+          const isExpanded = !hasTitle || expandedGroups.has(group.title);
+          const hasActive = group.items.some((item) => item.page === currentPage);
+          const toggleGroup = () => {
+            setExpandedGroups((prev) => {
+              const next = new Set(prev);
+              if (next.has(group.title)) next.delete(group.title);
+              else next.add(group.title);
+              return next;
+            });
+          };
           return (
-            <button
-              key={item.page}
-              onClick={() => onNavigate(item.page)}
-              title={item.label}
-              className={`relative w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
-                isActive
-                  ? 'text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-              style={isActive ? { backgroundColor: 'var(--color-primary)' } : undefined}
-            >
-              <Icon className="h-5 w-5 flex-shrink-0" />
-              {!collapsed && <span className="truncate">{item.label}</span>}
-              {item.page === 'alerts' && alertCount > 0 && (
-                <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-semibold text-white">{alertCount}</span>
+            <div key={group.title || 'dashboard'}>
+              {hasTitle && !collapsed && (
+                <button
+                  onClick={toggleGroup}
+                  className="w-full flex items-center gap-1 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                >
+                  <span className="flex-1 text-left">{group.title}</span>
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
+                </button>
               )}
-              {item.page === 'alerts' && alertCount > 0 && collapsed && (
-                <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-red-500" />
+              {hasTitle && collapsed && <div className="h-px bg-slate-200 dark:bg-slate-700 mx-3 my-1" />}
+              {isExpanded && group.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = currentPage === item.page;
+                return (
+                  <button
+                    key={item.page}
+                    onClick={() => onNavigate(item.page)}
+                    title={item.label}
+                    className={`relative w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
+                      isActive
+                        ? 'text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                    style={isActive ? { backgroundColor: 'var(--color-primary)' } : undefined}
+                  >
+                    <Icon className="h-5 w-5 flex-shrink-0" />
+                    {!collapsed && <span className="truncate">{item.label}</span>}
+                    {item.page === 'alerts' && alertCount > 0 && (
+                      <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-semibold text-white">{alertCount}</span>
+                    )}
+                    {item.page === 'alerts' && alertCount > 0 && collapsed && (
+                      <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-red-500" />
+                    )}
+                  </button>
+                );
+              })}
+              {hasActive && hasTitle && !isExpanded && collapsed && (
+                <span className="absolute" style={{ display: 'none' }} />
               )}
-            </button>
+            </div>
           );
         })}
       </nav>

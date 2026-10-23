@@ -3,26 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useSettings } from '@/context/SettingsContext';
 import { EmptyState } from '@/components/EmptyState';
 import { formatCurrency, formatDate, daysUntil, getMonthBounds, todayISO, isSameMonth, buildWhatsAppUrl, fillTemplate } from '@/lib/utils';
-import {
-  Users,
-  Calendar,
-  Cake,
-  FileText,
-  Wallet,
-  TrendingUp,
-  TrendingDown,
-  Plus,
-  Receipt,
-  CheckCircle,
-  Clock,
-  ShieldCheck,
-  ShieldAlert,
-  ClipboardList,
-  Package,
-  AlertTriangle,
-  Megaphone,
-  ArrowRight,
-} from 'lucide-react';
+import { Users, Calendar, Cake, FileText, Wallet, TrendingUp, TrendingDown, Plus, Receipt, CircleCheck as CheckCircle, Clock, ShieldCheck, ShieldAlert, ClipboardList, Package, TriangleAlert as AlertTriangle, Megaphone, ArrowRight } from 'lucide-react';
 import type { Page } from '@/components/Sidebar';
 import type { Client, Appointment, Budget, CashRegister, CashTransaction, FinancialEntry, FinancialExpense, ImageAuthorization, MessageTemplate, ServiceOrder, Campaign, InventoryItem, CrmTask } from '@/lib/types';
 
@@ -159,9 +140,15 @@ export function DashboardPage({ onNavigate }: DashboardProps) {
   ];
 
   const shortcuts = [
-    { label: 'Cadastrar cliente', icon: Users, page: 'clients' as Page },
-    { label: 'Gerar orçamento', icon: FileText, page: 'budgets' as Page },
-    { label: 'Abrir caixa', icon: Wallet, page: 'cash' as Page },
+    { label: 'Novo cliente', icon: Users, page: 'clients' as Page },
+    { label: 'Novo compromisso', icon: Calendar, page: 'agenda' as Page },
+    { label: 'Novo orçamento', icon: FileText, page: 'budgets' as Page },
+    { label: 'Nova ordem', icon: ClipboardList, page: 'orders' as Page },
+    { label: 'Registrar entrada/saída', icon: Wallet, page: 'cash' as Page },
+    { label: 'Serviços em produção', icon: ClipboardList, page: 'orders' as Page },
+    { label: 'Entregas pendentes', icon: CheckCircle, page: 'orders' as Page },
+    { label: 'Compromissos do dia', icon: Calendar, page: 'agenda' as Page },
+    { label: 'Pendências e alertas', icon: AlertTriangle, page: 'alerts' as Page },
     { label: 'Nova autorização', icon: ShieldCheck, page: 'authorizations' as Page },
   ];
 
@@ -173,7 +160,7 @@ export function DashboardPage({ onNavigate }: DashboardProps) {
       </div>
 
       {/* Shortcuts */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
         {shortcuts.map((s) => { const Icon = s.icon; return (
           <button key={s.label} onClick={() => onNavigate(s.page)} className="card p-4 flex items-center gap-3 hover:shadow-md transition-all hover:scale-[1.02]">
             <div className="h-10 w-10 rounded-xl flex items-center justify-center text-white flex-shrink-0" style={{ backgroundColor: 'var(--color-primary)' }}><Icon className="h-5 w-5" /></div>
@@ -216,6 +203,25 @@ export function DashboardPage({ onNavigate }: DashboardProps) {
                 </div>
                 <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-slate-500 flex-shrink-0 transition-colors" />
               </button>
+            ); })}
+          </div>
+        </div>
+      )}
+
+      {/* Today's appointments */}
+      {todayAppts.length > 0 && (
+        <div className="card p-5 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2"><Calendar className="h-4 w-4 text-violet-500" /> Compromissos de hoje</h3>
+            <button onClick={() => onNavigate('agenda')} className="text-xs text-slate-400 hover:text-slate-600">Ver agenda</button>
+          </div>
+          <div className="space-y-2">
+            {todayAppts.map((a) => { const client = clients.find((c) => c.id === a.client_id); return (
+              <div key={a.id} className="flex items-center gap-3 text-sm border-b border-slate-100 dark:border-slate-700 pb-2 last:border-0">
+                <div className="h-8 w-8 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center text-violet-600 text-xs font-bold flex-shrink-0">{a.start_time?.slice(0, 5) ?? '--:--'}</div>
+                <div className="flex-1 min-w-0"><p className="font-medium text-slate-900 dark:text-slate-100 truncate">{a.title}</p><p className="text-xs text-slate-400">{client?.full_name ?? 'Sem cliente'}</p></div>
+                <span className={`badge ${a.status === 'confirmado' ? 'badge-success' : a.status === 'cancelado' ? 'badge-danger' : 'badge-warning'}`}>{a.status}</span>
+              </div>
             ); })}
           </div>
         </div>
@@ -300,6 +306,41 @@ export function DashboardPage({ onNavigate }: DashboardProps) {
           </div>
         )}
       </div>
+
+      {/* Services in production + pending deliveries */}
+      {orders.length > 0 && (() => {
+        const inProduction = orders.filter((o) => o.status === 'em_producao' || o.status === 'aguardando_producao' || o.status === 'em_revisao');
+        const pendingDelivery = orders.filter((o) => o.status === 'concluido' && o.status !== 'entregue');
+        const lateOrdersFiltered = orders.filter((o) => o.due_date && o.status !== 'concluido' && o.status !== 'entregue' && o.status !== 'cancelado' && daysUntil(o.due_date) < 0);
+        if (inProduction.length === 0 && pendingDelivery.length === 0 && lateOrdersFiltered.length === 0) return null;
+        const orderCards = [
+          { label: 'Em produção', count: inProduction.length, items: inProduction, color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20', badge: 'badge-warning' },
+          { label: 'Aguardando entrega', count: pendingDelivery.length, items: pendingDelivery, color: 'text-teal-600 bg-teal-50 dark:bg-teal-900/20', badge: 'badge-info' },
+          { label: 'Atrasadas', count: lateOrdersFiltered.length, items: lateOrdersFiltered, color: 'text-red-600 bg-red-50 dark:bg-red-900/20', badge: 'badge-danger' },
+        ].filter((c) => c.count > 0);
+        return (
+          <div className="card p-5 mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2"><ClipboardList className="h-4 w-4" /> Ordens de serviço</h3>
+              <button onClick={() => onNavigate('orders')} className="text-xs text-slate-400 hover:text-slate-600">Ver todas</button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {orderCards.map((card) => (
+                <button key={card.label} onClick={() => onNavigate('orders')} className="text-left p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${card.color}`}><ClipboardList className="h-4 w-4" /></div>
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{card.label}</span>
+                    <span className="ml-auto text-lg font-bold text-slate-900 dark:text-slate-100">{card.count}</span>
+                  </div>
+                  {card.items.slice(0, 3).map((o) => { const client = clients.find((c) => c.id === o.client_id); return (
+                    <p key={o.id} className="text-xs text-slate-400 truncate">{o.code} · {client?.full_name ?? '—'}</p>
+                  );})}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Image authorizations */}
       <div className="card p-5 mt-6">
