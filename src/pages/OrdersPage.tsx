@@ -14,9 +14,11 @@ import type {
 } from '@/lib/types';
 import { isGmailAvailable, getGmailStatus, sendGmailEmail } from '@/lib/gmail';
 import { generateDocumentPDF } from '@/lib/pdfUtils';
+import { normalizePhone, formatPhoneForDisplay, buildWhatsAppUrl, buildWhatsAppMessage, openWhatsApp, isWhatsAppAvailable } from '@/lib/whatsapp';
 import { useSettings } from '@/context/SettingsContext';
 import { ClientSearchSelect } from '@/components/ClientSearchSelect';
 import { useSaving } from '@/lib/useSaving';
+import { Download, MessageCircle } from 'lucide-react';
 
 const statusLabels: Record<string, string> = {
   rascunho: 'Rascunho',
@@ -84,6 +86,12 @@ export function OrdersPage() {
   const [emailRecipient, setEmailRecipient] = useState('');
   const [emailSending, setEmailSending] = useState(false);
   const [emailHistory, setEmailHistory] = useState<EmailSendHistory[]>([]);
+
+  // WhatsApp sending
+  const [whatsappModal, setWhatsappModal] = useState<ServiceOrder | null>(null);
+  const [whatsappPhone, setWhatsappPhone] = useState('');
+  const [whatsappMessage, setWhatsappMessage] = useState('');
+  const [whatsappOpening, setWhatsappOpening] = useState(false);
 
   // Delivery panel search
   const [deliverySearch, setDeliverySearch] = useState('');
@@ -361,6 +369,27 @@ export function OrdersPage() {
     }
     setEmailRecipient(client.email);
     setEmailModal(o);
+  };
+
+  const openWhatsAppModal = (o: ServiceOrder) => {
+    const client = clients.find((c) => c.id === o.client_id);
+    const phone = client?.whatsapp || client?.phone || '';
+    if (!phone) {
+      toast('Este cliente não possui um telefone cadastrado.', 'warning');
+      return;
+    }
+    const studioName = settings.fantasy_name || settings.studio_name || 'Estúdio';
+    const message = buildWhatsAppMessage({
+      clientName: client?.full_name ?? 'cliente',
+      studioName,
+      orderCode: o.code,
+      orderTitle: o.title,
+      formattedDueDate: o.due_date ? formatDate(o.due_date) : null,
+      formattedOrderDate: o.created_at ? formatDate(o.created_at) : null,
+    });
+    setWhatsappPhone(phone);
+    setWhatsappMessage(message);
+    setWhatsappModal(o);
   };
 
   const handleSendEmail = async () => {
@@ -696,22 +725,31 @@ export function OrdersPage() {
                         <div className="flex flex-wrap gap-3">
                           <button onClick={() => openEdit(o)} className="btn-ghost text-xs"><Settings className="h-3 w-3" /> Editar pedido</button>
                           <button onClick={() => openEmailModal(o)} className="btn-ghost text-xs" style={{ color: 'var(--color-primary)' }}><Mail className="h-3 w-3" /> Enviar OS por e-mail</button>
+                          <button onClick={() => openWhatsAppModal(o)} className="btn-ghost text-xs" style={{ color: '#25D366' }}><MessageCircle className="h-3 w-3" /> Enviar OS pelo WhatsApp</button>
                         </div>
 
                         {emailHistory.length > 0 && (
                           <div>
-                            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2"><History className="h-4 w-4" /> Histórico de envios por e-mail</h4>
+                            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2"><History className="h-4 w-4" /> Histórico de envios</h4>
                             <div className="space-y-1.5">
-                              {emailHistory.map((h) => (
-                                <div key={h.id} className="flex items-center justify-between text-xs card p-2 bg-white dark:bg-slate-900">
-                                  <div className="flex items-center gap-2">
-                                    <span className={`badge ${h.status === 'enviado' ? 'badge-success' : h.status === 'falhou' ? 'badge-danger' : 'badge-neutral'} text-xs`}>{h.status === 'enviado' ? 'Enviado' : h.status === 'falhou' ? 'Falhou' : 'Pendente'}</span>
-                                    <span className="text-slate-600 dark:text-slate-300">{h.recipient_email}</span>
-                                    {h.error_message && <span className="text-red-500">— {h.error_message}</span>}
+                              {emailHistory.map((h) => {
+                                const isWhats = (h as unknown as { channel?: string }).channel === 'whatsapp';
+                                const recipient = isWhats
+                                  ? formatPhoneForDisplay((h as unknown as { recipient_phone?: string }).recipient_phone) || (h as unknown as { recipient_phone?: string }).recipient_phone
+                                  : h.recipient_email;
+                                return (
+                                  <div key={h.id} className="flex items-center justify-between text-xs card p-2 bg-white dark:bg-slate-900">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`badge ${isWhats ? 'badge-info' : ''} ${h.status === 'enviado' ? 'badge-success' : h.status === 'falhou' ? 'badge-danger' : 'badge-neutral'} text-xs`}>
+                                        {isWhats ? 'WhatsApp' : 'E-mail'}: {h.status === 'enviado' ? 'aberto' : h.status === 'falhou' ? 'falhou' : 'pendente'}
+                                      </span>
+                                      <span className="text-slate-600 dark:text-slate-300">{recipient}</span>
+                                      {h.error_message && <span className="text-red-500">— {h.error_message}</span>}
+                                    </div>
+                                    <span className="text-slate-400">{formatDateTime(h.created_at)}</span>
                                   </div>
-                                  <span className="text-slate-400">{formatDateTime(h.created_at)}</span>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           </div>
                         )}
@@ -985,6 +1023,151 @@ export function OrdersPage() {
                 <button onClick={handleSendEmail} disabled={emailSending || !emailRecipient.trim()} className="btn-primary">
                   <Send className="h-4 w-4" /> {emailSending ? 'Enviando...' : 'Confirmar envio'}
                 </button>
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
+
+      {/* WhatsApp modal */}
+      <Modal open={!!whatsappModal} onClose={() => whatsappOpening ? undefined : setWhatsappModal(null)} title="Enviar OS pelo WhatsApp" size="md">
+        {whatsappModal && (() => {
+          const client = clients.find((c) => c.id === whatsappModal.client_id);
+          return (
+            <div className="space-y-4">
+              <div className="card p-4 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800">
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 uppercase mb-2">Confirme os dados do envio</p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-slate-500">Número da OS:</span><span className="font-mono font-medium">{whatsappModal.code}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Cliente:</span><span className="font-medium">{client?.full_name ?? '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Telefone:</span><span className="font-medium">{formatPhoneForDisplay(whatsappPhone) || whatsappPhone}</span></div>
+                </div>
+              </div>
+
+              <div>
+                <label className="label">Telefone do destinatário *</label>
+                <input className="input" type="tel" placeholder="(11) 99999-9999" value={whatsappPhone} onChange={(e) => setWhatsappPhone(e.target.value)} disabled={whatsappOpening} />
+                <p className="text-xs text-slate-400 mt-1">O telefone do cliente foi preenchido automaticamente. Você pode corrigir se necessário.</p>
+              </div>
+
+              <div>
+                <label className="label">Mensagem</label>
+                <textarea className="input min-h-[160px] text-sm" value={whatsappMessage} onChange={(e) => setWhatsappMessage(e.target.value)} disabled={whatsappOpening} />
+                <p className="text-xs text-slate-400 mt-1">Confira e edite o texto antes de enviar. A mensagem será aberta no WhatsApp para sua confirmação.</p>
+              </div>
+
+              <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 text-sm text-amber-700 dark:text-amber-300">
+                <p className="font-medium mb-1">Como anexar o PDF da OS:</p>
+                <ol className="list-decimal list-inside space-y-1 text-xs">
+                  <li>Clique em "Salvar PDF da OS" abaixo para baixar o arquivo.</li>
+                  <li>Após abrir o WhatsApp, use o botão de anexo (clipe) para enviar o PDF.</li>
+                  <li>Confirme o envio no próprio aplicativo do WhatsApp.</li>
+                </ol>
+              </div>
+
+              {whatsappOpening && (
+                <div className="rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-3 flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300">
+                  <MessageCircle className="h-4 w-4 animate-pulse" /> Abrindo o WhatsApp para enviar a Ordem de Serviço...
+                </div>
+              )}
+
+              <div className="flex justify-between gap-3">
+                <button
+                  onClick={async () => {
+                    if (!whatsappModal) return;
+                    const client2 = clients.find((c) => c.id === whatsappModal.client_id);
+                    const itemsText = orderItems.length > 0
+                      ? orderItems.map((it) => `- ${it.name} (Qtd: ${it.quantity}) — ${formatCurrency(it.subtotal)}`).join('\n')
+                      : 'Sem itens detalhados.';
+                    const total = orderItems.reduce((s, it) => s + it.subtotal, 0);
+                    const pdfSettings = {
+                      studio_name: settings.studio_name,
+                      fantasy_name: settings.fantasy_name,
+                      tax_id: settings.tax_id,
+                      address: settings.address,
+                      phone: settings.phone,
+                      email: settings.email,
+                      logo_url: settings.logo_url,
+                    };
+                    const pdfBlob = generateDocumentPDF({
+                      title: `Ordem de Serviço ${whatsappModal.code}`,
+                      body: `${whatsappModal.title}\n\nCliente: ${client2?.full_name ?? '—'}\n${client2?.phone ? 'Telefone: ' + client2.phone + '\n' : ''}Itens:\n${itemsText}\n${total > 0 ? '\nValor total: ' + formatCurrency(total) : ''}${whatsappModal.due_date ? '\n\nPrazo de entrega: ' + formatDate(whatsappModal.due_date) : ''}${whatsappModal.delivery_method ? '\nForma de entrega: ' + whatsappModal.delivery_method : ''}${whatsappModal.notes ? '\n\nObservações:\n' + whatsappModal.notes : ''}`,
+                      settings: pdfSettings,
+                    });
+                    const url = URL.createObjectURL(pdfBlob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `OS-${whatsappModal.code}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    toast('PDF da OS salvo. Anexe-o no WhatsApp.', 'success');
+                  }}
+                  disabled={whatsappOpening}
+                  className="btn-secondary"
+                >
+                  <Download className="h-4 w-4" /> Salvar PDF da OS
+                </button>
+
+                <div className="flex gap-3">
+                  <button onClick={() => setWhatsappModal(null)} disabled={whatsappOpening} className="btn-secondary">Cancelar</button>
+                  <button
+                    onClick={async () => {
+                      if (!whatsappModal) return;
+                      const normalized = normalizePhone(whatsappPhone);
+                      if (!normalized) {
+                        toast('Confira o número do telefone antes de continuar. Formato inválido.', 'warning');
+                        return;
+                      }
+                      if (!whatsappMessage.trim()) {
+                        toast('A mensagem não pode estar vazia.', 'warning');
+                        return;
+                      }
+                      setWhatsappOpening(true);
+                      const url = buildWhatsAppUrl(normalized, whatsappMessage);
+                      const res = await openWhatsApp(url);
+                      if (res.success) {
+                        await supabase.from('email_send_history').insert({
+                          service_order_id: whatsappModal.id,
+                          order_code: whatsappModal.code,
+                          client_id: whatsappModal.client_id,
+                          recipient_email: '',
+                          recipient_phone: normalized,
+                          subject: null,
+                          status: 'enviado',
+                          channel: 'whatsapp',
+                          sent_at: new Date().toISOString(),
+                        });
+                        toast('WhatsApp aberto. Confirme o envio no aplicativo.', 'info');
+                        setWhatsappModal(null);
+                      } else {
+                        await supabase.from('email_send_history').insert({
+                          service_order_id: whatsappModal.id,
+                          order_code: whatsappModal.code,
+                          client_id: whatsappModal.client_id,
+                          recipient_email: '',
+                          recipient_phone: normalized,
+                          subject: null,
+                          status: 'falhou',
+                          channel: 'whatsapp',
+                          error_message: res.error ?? 'Não foi possível abrir o WhatsApp',
+                        });
+                        toast('Não foi possível abrir o WhatsApp. Verifique a conexão ou tente novamente.', 'error');
+                      }
+                      if (expandedOrder === whatsappModal.id) {
+                        const { data: histData } = await supabase.from('email_send_history').select('*').eq('service_order_id', whatsappModal.id).order('created_at', { ascending: false });
+                        setEmailHistory((histData as EmailSendHistory[]) ?? []);
+                      }
+                      setWhatsappOpening(false);
+                    }}
+                    disabled={whatsappOpening || !whatsappPhone.trim() || !whatsappMessage.trim()}
+                    className="btn-primary"
+                    style={{ backgroundColor: '#25D366', borderColor: '#25D366' }}
+                  >
+                    <MessageCircle className="h-4 w-4" /> {whatsappOpening ? 'Abrindo...' : 'Abrir WhatsApp'}
+                  </button>
+                </div>
               </div>
             </div>
           );

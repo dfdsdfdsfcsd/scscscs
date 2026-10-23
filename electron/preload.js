@@ -24,6 +24,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   gmailStatus: () => ipcRenderer.invoke('gmail:status'),
   gmailSendEmail: (options) => ipcRenderer.invoke('gmail:sendEmail', options),
   gmailSendTest: (options) => ipcRenderer.invoke('gmail:sendTest', options),
+  // Safe external URL (WhatsApp)
+  openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
   // Auto-update
   updateCheck: () => ipcRenderer.invoke('update:check'),
   updateInstall: () => ipcRenderer.invoke('update:install'),

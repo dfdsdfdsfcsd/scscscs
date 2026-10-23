@@ -823,6 +823,31 @@ ipcMain.handle('gmail:sendTest', async (_event, options) => {
   }
 });
 
+// --- Safe external URL opening (WhatsApp) ---
+
+const ALLOWED_EXTERNAL_DOMAINS = ['wa.me', 'api.whatsapp.com', 'web.whatsapp.com'];
+
+function isAllowedExternalUrl(urlString) {
+  try {
+    const parsed = new URL(urlString);
+    const host = parsed.hostname.replace(/^www\./, '');
+    return ALLOWED_EXTERNAL_DOMAINS.includes(host) && (parsed.protocol === 'https:');
+  } catch {
+    return false;
+  }
+}
+
+ipcMain.handle('shell:openExternal', async (_event, url) => {
+  if (!url || typeof url !== 'string') return { success: false, error: 'URL inválida' };
+  if (!isAllowedExternalUrl(url)) return { success: false, error: 'Domínio não permitido' };
+  try {
+    await shell.openExternal(url);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: String(err) };
+  }
+});
+
 // --- Auto-update IPC handlers ---
 
 ipcMain.handle('update:check', async () => {
