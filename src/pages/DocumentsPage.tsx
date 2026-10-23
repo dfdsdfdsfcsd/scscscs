@@ -405,7 +405,7 @@ export function DocumentsPage({ onNavigate }: DocumentsPageProps = {}) {
         {generateTarget && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div><label className="label">Cliente</label><ClientSearchSelect clients={clients} value={generateForm.client_id} onChange={(id) => { updateGenerated({ client_id: id ?? '' }); if (id) loadAttachments(id); else setSavedAttachments([]); }} /></div>
+              <div><label className="label">Cliente</label><ClientSearchSelect clients={clients} value={generateForm.client_id} onChange={(id) => { updateGenerated({ client_id: id ?? '' }); if (id) loadAttachments(id); else setSavedAttachments([]); }} onClientCreated={(c) => setClients((prev) => [...prev, c])} /></div>
               <div><label className="label">Serviço</label><select className="input" value={generateForm.service_id} onChange={(e) => updateGenerated({ service_id: e.target.value })}><option value="">Selecione...</option>{services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
               <div><label className="label">Orçamento aprovado (opcional)</label><select className="input" value={generateForm.budget_id} onChange={(e) => updateGenerated({ budget_id: e.target.value })}><option value="">Sem orçamento</option>{budgets.map((b) => <option key={b.id} value={b.id}>{b.code}</option>)}</select></div>
               <div><label className="label">Data do serviço</label><input type="date" className="input" value={generateForm.data_servico} onChange={(e) => updateGenerated({ data_servico: e.target.value })} /></div>

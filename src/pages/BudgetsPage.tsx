@@ -7,18 +7,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { EmptyState } from '@/components/EmptyState';
 import { toast } from '@/components/Toast';
 import { formatCurrency, formatDate, todayISO, buildWhatsAppUrl, toLocalISODate } from '@/lib/utils';
-import {
-  Plus,
-  Search,
-  Eye,
-  Trash2,
-  FileText,
-  Printer,
-  CheckCircle,
-  XCircle,
-  Trash,
-  MessageCircle,
-} from 'lucide-react';
+import { Plus, Search, Eye, Trash2, FileText, Printer, CircleCheck as CheckCircle, Circle as XCircle, Trash, MessageCircle } from 'lucide-react';
 import type { Budget, BudgetItem, Client, Service, ServiceOrder, Campaign } from '@/lib/types';
 import { ClientSearchSelect } from '@/components/ClientSearchSelect';
 import { buildPrintHTML, openPrintWindow } from '@/lib/printUtils';
@@ -409,7 +398,7 @@ export function BudgetsPage() {
         <div className="space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div><label className="label">Código</label><input className="input" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} /></div>
-            <div><label className="label">Cliente *</label><ClientSearchSelect clients={clients} value={form.client_id} onChange={(id) => setForm({ ...form, client_id: id ?? '' })} required /></div>
+            <div><label className="label">Cliente *</label><ClientSearchSelect clients={clients} value={form.client_id} onChange={(id) => setForm({ ...form, client_id: id ?? '' })} required onClientCreated={(c) => setClients((prev) => [...prev, c])} /></div>
             <div><label className="label">Validade</label><input type="date" className="input" value={form.valid_until} onChange={(e) => setForm({ ...form, valid_until: e.target.value })} /></div>
           </div>
 

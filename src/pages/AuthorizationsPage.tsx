@@ -439,7 +439,7 @@ export function AuthorizationsPage({ preselectClientId, preselectAuthId, onConsu
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
                 <label className="label">Cliente *</label>
-                <ClientSearchSelect clients={clients} value={form.client_id} onChange={(id) => setForm({ ...form, client_id: id ?? '' })} required />
+                <ClientSearchSelect clients={clients} value={form.client_id} onChange={(id) => setForm({ ...form, client_id: id ?? '' })} required onClientCreated={(c) => setClients((prev) => [...prev, c])} />
               </div>
               <div><label className="label">Nome do ensaio</label><input className="input" value={form.session_title ?? ''} onChange={(e) => setForm({ ...form, session_title: e.target.value })} /></div>
               <div><label className="label">Data do ensaio</label><input type="date" className="input" value={form.session_date ?? ''} onChange={(e) => setForm({ ...form, session_date: e.target.value })} /></div>

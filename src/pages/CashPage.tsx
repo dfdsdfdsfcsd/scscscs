@@ -8,19 +8,7 @@ import { toast } from '@/components/Toast';
 import { formatCurrency, formatDateTime, todayISO, toLocalISODate } from '@/lib/utils';
 import { useSettings } from '@/context/SettingsContext';
 import { verifyPassword, isLockedOut, recordFailedAttempt, resetAttempts, getRemainingAttempts } from '@/lib/cashSecurity';
-import {
-  Wallet,
-  Plus,
-  Lock,
-  Unlock,
-  Trash2,
-  Printer,
-  ArrowUpCircle,
-  ArrowDownCircle,
-  Receipt,
-  TrendingUp,
-  TrendingDown,
-} from 'lucide-react';
+import { Wallet, Plus, Lock, Clock as Unlock, Trash2, Printer, CircleArrowUp as ArrowUpCircle, CircleArrowDown as ArrowDownCircle, Receipt, TrendingUp, TrendingDown } from 'lucide-react';
 import type { CashRegister, CashTransaction, Client, Service, FinancialEntry } from '@/lib/types';
 import { ClientSearchSelect } from '@/components/ClientSearchSelect';
 import { Eye, EyeOff, ShieldAlert } from 'lucide-react';
@@ -425,7 +413,7 @@ export function CashPage() {
             <div><label className="label">Valor (R$) *</label><input type="number" step="0.01" className="input" value={txForm.amount} onChange={(e) => setTxForm({ ...txForm, amount: parseFloat(e.target.value) || 0 })} /></div>
             <div><label className="label">Forma de pagamento</label><select className="input" value={txForm.payment_method} onChange={(e) => setTxForm({ ...txForm, payment_method: e.target.value })}>{paymentMethods.map((m) => <option key={m}>{m}</option>)}</select></div>
           </div>
-          <div><label className="label">Cliente (opcional)</label><ClientSearchSelect clients={clients} value={txForm.client_id} onChange={(id) => setTxForm({ ...txForm, client_id: id ?? '' })} /></div>
+          <div><label className="label">Cliente (opcional)</label><ClientSearchSelect clients={clients} value={txForm.client_id} onChange={(id) => setTxForm({ ...txForm, client_id: id ?? '' })} onClientCreated={(c) => setClients((prev) => [...prev, c])} /></div>
           {(txForm.category === 'recebimento_parcela' || txForm.category === 'recebimento_sinal') && pendingEntries.length > 0 && (
             <div><label className="label">Conta a receber (opcional)</label><select className="input" value={txForm.financial_entry_id} onChange={(e) => selectFinancialEntry(e.target.value)}><option value="">Sem vínculo</option>{pendingEntries.map((e) => <option key={e.id} value={e.id}>{e.description} — {formatCurrency(e.total_amount - e.paid_amount)} restante</option>)}</select></div>
           )}

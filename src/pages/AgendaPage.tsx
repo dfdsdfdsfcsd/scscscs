@@ -638,7 +638,7 @@ export function AgendaPage() {
           </div>
           {!form.is_blocked && (
             <>
-              <div><label className="label">Cliente</label><ClientSearchSelect clients={clients} value={form.client_id} onChange={(id) => setForm({ ...form, client_id: id })} /></div>
+              <div><label className="label">Cliente</label><ClientSearchSelect clients={clients} value={form.client_id} onChange={(id) => setForm({ ...form, client_id: id })} onClientCreated={(c) => setClients((prev) => [...prev, c])} /></div>
               <div><label className="label">Serviço</label><select className="input" value={form.service_id ?? ''} onChange={(e) => setForm({ ...form, service_id: e.target.value || null })}><option value="">Sem serviço</option>{services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
               <div><label className="label">Local *</label><input className="input" value={form.location ?? ''} onChange={(e) => setForm({ ...form, location: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-4">
@@ -685,7 +685,7 @@ export function AgendaPage() {
           <div className="card p-4 bg-slate-50 dark:bg-slate-800/50">
             <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Adicionar à lista de espera</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div><label className="label">Cliente *</label><ClientSearchSelect clients={clients} value={waitlistForm.client_id} onChange={(id) => setWaitlistForm({ ...waitlistForm, client_id: id ?? '' })} /></div>
+              <div><label className="label">Cliente *</label><ClientSearchSelect clients={clients} value={waitlistForm.client_id} onChange={(id) => setWaitlistForm({ ...waitlistForm, client_id: id ?? '' })} onClientCreated={(c) => setClients((prev) => [...prev, c])} /></div>
               <div><label className="label">Serviço pretendido</label><select className="input" value={waitlistForm.service_id} onChange={(e) => setWaitlistForm({ ...waitlistForm, service_id: e.target.value })}><option value="">Qualquer serviço</option>{services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
               <div><label className="label">A partir de *</label><input type="date" className="input" value={waitlistForm.desired_period_start} onChange={(e) => setWaitlistForm({ ...waitlistForm, desired_period_start: e.target.value })} /></div>
               <div><label className="label">Até (opcional)</label><input type="date" className="input" value={waitlistForm.desired_period_end} onChange={(e) => setWaitlistForm({ ...waitlistForm, desired_period_end: e.target.value })} /></div>

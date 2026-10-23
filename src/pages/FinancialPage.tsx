@@ -737,7 +737,7 @@ export function FinancialPage() {
             <div><label className="label">Parcela</label><input type="number" className="input" value={entryForm.installment_number} onChange={(e) => setEntryForm({ ...entryForm, installment_number: parseInt(e.target.value) || 1 })} /></div>
             <div><label className="label">Total de parcelas</label><input type="number" className="input" value={entryForm.total_installments} onChange={(e) => setEntryForm({ ...entryForm, total_installments: parseInt(e.target.value) || 1 })} /></div>
           </div>
-          <div><label className="label">Cliente</label><ClientSearchSelect clients={clients} value={entryForm.client_id} onChange={(id) => setEntryForm({ ...entryForm, client_id: id ?? '' })} /></div>
+          <div><label className="label">Cliente</label><ClientSearchSelect clients={clients} value={entryForm.client_id} onChange={(id) => setEntryForm({ ...entryForm, client_id: id ?? '' })} onClientCreated={(c) => setClients((prev) => [...prev, c])} /></div>
           {budgets.length > 0 && <div><label className="label">Orçamento relacionado</label><select className="input" value={entryForm.budget_id} onChange={(e) => setEntryForm({ ...entryForm, budget_id: e.target.value })}><option value="">Sem orçamento</option>{budgets.map((b) => <option key={b.id} value={b.id}>{b.code}</option>)}</select></div>}
           <div className="grid grid-cols-2 gap-4">
             <div><label className="label">Categoria</label><select className="input" value={entryForm.category} onChange={(e) => setEntryForm({ ...entryForm, category: e.target.value })}>{entryCategories.map((c) => <option key={c}>{c}</option>)}</select></div>
