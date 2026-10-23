@@ -8,7 +8,24 @@ export type AiAction =
   | 'sugerir_tarefas'
   | 'texto_campanha'
   | 'organizar_informacoes'
-  | 'oportunidades_retorno';
+  | 'oportunidades_retorno'
+  | 'gerar_documento_contrato'
+  | 'gerar_documento_termo'
+  | 'gerar_documento_autorizacao'
+  | 'gerar_documento_recibo'
+  | 'gerar_documento_declaracao'
+  | 'gerar_documento_outro';
+
+export type AiDocAction = Extract<AiAction, `gerar_documento_${string}`>;
+
+export const DOC_TYPE_ACTIONS: Record<string, AiDocAction> = {
+  contrato: 'gerar_documento_contrato',
+  termo: 'gerar_documento_termo',
+  autorizacao: 'gerar_documento_autorizacao',
+  recibo: 'gerar_documento_recibo',
+  declaracao: 'gerar_documento_declaracao',
+  outro: 'gerar_documento_outro',
+};
 
 export const AI_ACTIONS: { id: AiAction; label: string; description: string }[] = [
   { id: 'mensagem_atendimento', label: 'Mensagem de atendimento', description: 'Crie uma mensagem de boas-vindas ou retorno para o cliente' },
@@ -19,6 +36,12 @@ export const AI_ACTIONS: { id: AiAction; label: string; description: string }[] 
   { id: 'texto_campanha', label: 'Texto de campanha', description: 'Elabore texto promocional para redes sociais ou WhatsApp' },
   { id: 'organizar_informacoes', label: 'Organizar informações', description: 'Estruture informações comerciais de forma legível' },
   { id: 'oportunidades_retorno', label: 'Oportunidades de retorno', description: 'Identifique oportunidades de reengajar clientes' },
+  { id: 'gerar_documento_contrato', label: 'Contrato (IA)', description: 'Gere um contrato de serviços fotográficos com IA' },
+  { id: 'gerar_documento_termo', label: 'Termo (IA)', description: 'Gere um termo de responsabilidade com IA' },
+  { id: 'gerar_documento_autorizacao', label: 'Autorização (IA)', description: 'Gere uma autorização de uso de imagem (LGPD) com IA' },
+  { id: 'gerar_documento_recibo', label: 'Recibo (IA)', description: 'Gere um recibo de pagamento com IA' },
+  { id: 'gerar_documento_declaracao', label: 'Declaração (IA)', description: 'Gere uma declaração formal com IA' },
+  { id: 'gerar_documento_outro', label: 'Outro documento (IA)', description: 'Gere um documento personalizado com IA' },
 ];
 
 function stripSensitive(text: string): string {

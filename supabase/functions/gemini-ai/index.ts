@@ -39,6 +39,18 @@ const ACTION_PROMPTS: Record<string, string> = {
     "Organize as informações comerciais fornecidas de forma estruturada e legível. Destaque pontos relevantes.",
   oportunidades_retorno:
     "Identifique oportunidades de retorno para clientes inativos ou com pendências. Sugira abordagens específicas para cada caso.",
+  gerar_documento_contrato:
+    "Gere o corpo de um CONTRATO de prestação de serviços fotográficos. Use linguagem jurídica formal em português brasileiro. NÃO inclua nomes, CPF, telefones, endereços ou dados pessoais reais — use os marcadores {NOME_CLIENTE}, {CPF_CLIENTE}, {NOME_ESTUDIO}, {CNPJ_CPF}, {SERVICO_DESCRICAO}, {DATA_SERVICO}, {LOCAL_SERVICO}, {VALOR_CONTRATADO}, {CONDICOES_PAGAMENTO}, {PRAZO_ENTREGA}, {TERMOS_CANCELAMENTO}, {TERMOS_REAGENDAMENTO} onde aplicável. Inclua cláusulas de: objeto, obrigações das partes, pagamento, prazo de entrega, cancelamento e reagendamento, direitos autorais e uso de imagem, foro. Se o usuário fornecer instruções ou cláusulas específicas, incorpore-as.",
+  gerar_documento_termo:
+    "Gere o corpo de um TERMO de responsabilidade ou ciência relacionado a serviços fotográficos. Use linguagem formal em português brasileiro. NÃO inclua dados pessoais reais — use marcadores {NOME_CLIENTE}, {CPF_CLIENTE}, {NOME_ESTUDIO}, {SERVICO_DESCRICAO}, {DATA_SERVICO} conforme necessário. Adapte o conteúdo à finalidade indicada pelo usuário.",
+  gerar_documento_autorizacao:
+    "Gere o corpo de uma AUTORIZAÇÃO de uso de imagem para fotografia, em conformidade com a LGPD. Use linguagem formal em português brasileiro. NÃO inclua dados pessoais reais — use marcadores {NOME_CLIENTE}, {CPF_CLIENTE}, {NOME_ESTUDIO}, {ESCOPO_AUTORIZACAO}, {PRAZO_AUTORIZACAO} onde aplicável. Inclua: finalidades do uso, vigência, direito de revogação, proteção de dados de menores se aplicável.",
+  gerar_documento_recibo:
+    "Gere o corpo de um RECIBO de pagamento de serviços fotográficos. Use linguagem formal em português brasileiro. NÃO inclua dados pessoais reais — use marcadores {NOME_CLIENTE}, {CPF_CLIENTE}, {NOME_ESTUDIO}, {CNPJ_CPF}, {VALOR_PAGAMENTO}, {DESCRICAO_PAGAMENTO}, {DATA_PAGAMENTO} onde aplicável. Inclua declaração de quitação.",
+  gerar_documento_declaracao:
+    "Gere o corpo de uma DECLARAÇÃO relacionada a serviços fotográficos. Use linguagem formal em português brasileiro. NÃO inclua dados pessoais reais — use marcadores {NOME_CLIENTE}, {CPF_CLIENTE}, {NOME_ESTUDIO}, {SERVICO_DESCRICAO}, {DATA_SERVICO} conforme necessário. Adapte à finalidade indicada pelo usuário.",
+  gerar_documento_outro:
+    "Gere o corpo de um documento jurídico/formal para estúdio fotográfico conforme a descrição do usuário. Use linguagem formal em português brasileiro. NÃO inclua dados pessoais reais — use os marcadores disponíveis ({NOME_CLIENTE}, {CPF_CLIENTE}, {NOME_ESTUDIO}, etc.) onde aplicável. Adapte o conteúdo à finalidade indicada.",
 };
 
 async function getGeminiKey(): Promise<string | null> {
@@ -158,7 +170,7 @@ Deno.serve(async (req: Request) => {
         systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
         generationConfig: {
           temperature: 0.7,
-          maxOutputTokens: 2048,
+          maxOutputTokens: action.startsWith("gerar_documento_") ? 4096 : 2048,
         },
       }),
     });

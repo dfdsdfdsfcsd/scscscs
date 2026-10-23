@@ -7,18 +7,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { EmptyState } from '@/components/EmptyState';
 import { toast } from '@/components/Toast';
 import { formatDate, fillTemplate } from '@/lib/utils';
-import {
-  Plus,
-  Search,
-  Pencil,
-  Trash2,
-  FileText,
-  Printer,
-  Copy,
-  Eye,
-  Download,
-  FileCheck,
-} from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, FileText, Printer, Copy, Eye, Download, FileCheck, Sparkles, RefreshCw, CircleAlert as AlertCircle, Save } from 'lucide-react';
 import type { DocumentTemplate, Client, Service, Budget, ClientAttachment } from '@/lib/types';
 import { ClientSearchSelect } from '@/components/ClientSearchSelect';
 import type { Page } from '@/components/Sidebar';
@@ -27,6 +16,7 @@ import { buildPrintHTML, openPrintWindow } from '@/lib/printUtils';
 import { SignaturePad, type SignaturePadHandle } from '@/components/SignaturePad';
 import { generateDocumentPDF, downloadPDF, uploadDocumentToStorage } from '@/lib/pdfUtils';
 import { uploadToGDrive, createSyncLogEntry, buildStandardFileName, SYNC_CATEGORIES, isGDriveAvailable } from '@/lib/googleDrive';
+import { callGemini, DOC_TYPE_ACTIONS, type AiDocAction } from '@/lib/ai';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
@@ -51,6 +41,19 @@ export function DocumentsPage({ onNavigate }: DocumentsPageProps = {}) {
   const [signatureData, setSignatureData] = useState<string | null>(null);
   const [savedAttachments, setSavedAttachments] = useState<ClientAttachment[]>([]);
   const sigPadRef = useRef<SignaturePadHandle>(null);
+
+  // AI document generation state
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiStep, setAiStep] = useState<'config' | 'generating' | 'review'>('config');
+  const [aiDocType, setAiDocType] = useState<string>('contrato');
+  const [aiTitle, setAiTitle] = useState('');
+  const [aiInstructions, setAiInstructions] = useState('');
+  const [aiClauses, setAiClauses] = useState('');
+  const [aiBaseTemplateBody, setAiBaseTemplateBody] = useState('');
+  const [aiUseBaseTemplate, setAiUseBaseTemplate] = useState(true);
+  const [aiBaseTemplateId, setAiBaseTemplateId] = useState('');
+  const [aiGeneratedBody, setAiGeneratedBody] = useState('');
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const [form, setForm] = useState<Partial<DocumentTemplate>>({
     name: '', type: 'contrato', title: '', body: '', header: '', footer: '', is_default: false,
@@ -116,6 +119,104 @@ export function DocumentsPage({ onNavigate }: DocumentsPageProps = {}) {
     setGeneratedText(t.body);
     setSignatureData(null);
     setSavedAttachments([]);
+  };
+
+  const openAiGenerate = () => {
+    setAiStep('config');
+    setAiDocType('contrato');
+    setAiTitle('');
+    setAiInstructions('');
+    setAiClauses('');
+    setAiBaseTemplateBody('');
+    setAiUseBaseTemplate(true);
+    setAiBaseTemplateId('');
+    setAiGeneratedBody('');
+    setAiError(null);
+    // pre-select default template of this type
+    const defaultTpl = templates.find((t) => t.type === 'contrato' && t.is_default) ?? templates.find((t) => t.type === 'contrato');
+    if (defaultTpl) {
+      setAiBaseTemplateId(defaultTpl.id);
+      setAiBaseTemplateBody(defaultTpl.body);
+      setAiTitle(defaultTpl.title);
+    }
+    setAiOpen(true);
+  };
+
+  const onAiDocTypeChange = (type: string) => {
+    setAiDocType(type);
+    const typeLabels: Record<string, string> = { contrato: 'Contrato de Prestação de Serviços', termo: 'Termo de Responsabilidade', autorizacao: 'Autorização de Uso de Imagem', recibo: 'Recibo de Pagamento', declaracao: 'Declaração', outro: 'Documento' };
+    const tpl = templates.find((t) => t.type === type && t.is_default) ?? templates.find((t) => t.type === type);
+    if (tpl) {
+      setAiBaseTemplateId(tpl.id);
+      setAiBaseTemplateBody(tpl.body);
+      if (!aiTitle || aiTitle === 'Contrato de Prestação de Serviços' || aiTitle === 'Termo de Responsabilidade' || aiTitle === 'Autorização de Uso de Imagem' || aiTitle === 'Recibo de Pagamento' || aiTitle === 'Declaração') {
+        setAiTitle(tpl.title);
+      }
+    } else {
+      setAiBaseTemplateId('');
+      setAiBaseTemplateBody('');
+      setAiTitle(typeLabels[type] ?? 'Documento');
+    }
+  };
+
+  const runAiGeneration = async () => {
+    const action = DOC_TYPE_ACTIONS[aiDocType] ?? ('gerar_documento_outro' as AiDocAction);
+    setAiStep('generating');
+    setAiError(null);
+    try {
+      const contextParts: string[] = [];
+      if (aiUseBaseTemplate && aiBaseTemplateBody) {
+        contextParts.push(`Modelo aprovado do estúdio (use como base e estrutura, adapte e melhore o conteúdo):\n${aiBaseTemplateBody}`);
+      }
+      if (aiInstructions.trim()) {
+        contextParts.push(`Finalidade / instruções específicas:\n${aiInstructions.trim()}`);
+      }
+      if (aiClauses.trim()) {
+        contextParts.push(`Cláusulas ou condições adicionais a incluir:\n${aiClauses.trim()}`);
+      }
+      const context = contextParts.join('\n\n');
+      const result = await callGemini(action, context, '');
+      setAiGeneratedBody(result.text);
+      setAiStep('review');
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Erro ao gerar documento com IA');
+      setAiStep('config');
+    }
+  };
+
+  const saveAiAsTemplate = async () => {
+    if (!aiGeneratedBody) return;
+    const name = aiTitle || `Documento IA ${aiDocType}`;
+    const { error } = await supabase.from('document_templates').insert({
+      name,
+      type: aiDocType,
+      title: aiTitle || name,
+      body: aiGeneratedBody,
+      header: '',
+      footer: '',
+      is_default: false,
+    });
+    if (error) { toast('Erro ao salvar modelo', 'error'); return; }
+    toast('Modelo salvo a partir da geração IA', 'success');
+    load();
+  };
+
+  const confirmAiDocument = () => {
+    // Create a pseudo-template from AI output and transition to existing generate flow
+    const tpl: DocumentTemplate = {
+      id: `ai_${Date.now()}`,
+      name: aiTitle || `Documento IA ${aiDocType}`,
+      type: aiDocType,
+      title: aiTitle || `Documento IA ${aiDocType}`,
+      body: aiGeneratedBody,
+      header: '',
+      footer: '',
+      is_default: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    setAiOpen(false);
+    openGenerate(tpl);
   };
 
   const updateGenerated = (updates: Partial<typeof generateForm>) => {
@@ -235,7 +336,7 @@ export function DocumentsPage({ onNavigate }: DocumentsPageProps = {}) {
 
   return (
     <div>
-      <PageHeader title="Contratos e documentos" subtitle={`${templates.length} modelo(s) disponível(is)`} actions={<button onClick={openNew} className="btn-primary"><Plus className="h-4 w-4" /> Novo modelo</button>} />
+      <PageHeader title="Contratos e documentos" subtitle={`${templates.length} modelo(s) disponível(is)`} actions={<div className="flex gap-2"><button onClick={openAiGenerate} className="btn-secondary"><Sparkles className="h-4 w-4" /> Gerar documento com IA</button><button onClick={openNew} className="btn-primary"><Plus className="h-4 w-4" /> Novo modelo</button></div>} />
 
       <div className="card p-4 mb-4 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800">
         <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -349,6 +450,84 @@ export function DocumentsPage({ onNavigate }: DocumentsPageProps = {}) {
               <button onClick={() => generatePDF(false)} className="btn-secondary"><Download className="h-4 w-4" /> Baixar PDF</button>
               <button onClick={printDocument} className="btn-secondary"><Printer className="h-4 w-4" /> Imprimir</button>
               <button onClick={saveDocumentToClient} className="btn-primary" disabled={!generateForm.client_id}><FileCheck className="h-4 w-4" /> {signatureData ? 'Salvar documento assinado' : 'Salvar no cadastro do cliente'}</button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* AI Generation Modal */}
+      <Modal open={aiOpen} onClose={() => setAiOpen(false)} title="Gerar documento com IA" size="xl">
+        {aiStep === 'config' && (
+          <div className="space-y-4">
+            <div className="card p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-700 dark:text-amber-300">A IA gera apenas o texto do documento com marcadores ({'{NOME_CLIENTE}'}, etc.). Os dados reais do cliente são preenchidos localmente após a geração. Nenhum dado pessoal é enviado ao Gemini.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="label">Tipo de documento</label>
+                <select className="input" value={aiDocType} onChange={(e) => onAiDocTypeChange(e.target.value)}>
+                  {Object.entries(typeLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Título do documento</label>
+                <input className="input" value={aiTitle} onChange={(e) => setAiTitle(e.target.value)} placeholder="Ex: Contrato de Prestação de Serviços" />
+              </div>
+            </div>
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer mb-2">
+                <input type="checkbox" checked={aiUseBaseTemplate} onChange={(e) => setAiUseBaseTemplate(e.target.checked)} className="h-4 w-4 rounded accent-teal-600" />
+                <span className="text-sm text-slate-700 dark:text-slate-300">Usar modelo aprovado como base (recomendado)</span>
+              </label>
+              {aiUseBaseTemplate && (
+                <select className="input" value={aiBaseTemplateId} onChange={(e) => { const t = templates.find((x) => x.id === e.target.value); setAiBaseTemplateId(e.target.value); if (t) { setAiBaseTemplateBody(t.body); if (!aiTitle) setAiTitle(t.title); } }}>
+                  <option value="">Selecione um modelo base...</option>
+                  {templates.filter((t) => t.type === aiDocType).map((t) => <option key={t.id} value={t.id}>{t.name}{t.is_default ? ' (padrão)' : ''}</option>)}
+                </select>
+              )}
+            </div>
+            <div>
+              <label className="label">Finalidade / instruções específicas (opcional)</label>
+              <textarea className="input min-h-[80px]" value={aiInstructions} onChange={(e) => setAiInstructions(e.target.value)} placeholder="Ex: Contrato para ensaio gestante com sessão em estúdio e externa, entrega em 15 dias..." />
+            </div>
+            <div>
+              <label className="label">Cláusulas ou condições adicionais (opcional)</label>
+              <textarea className="input min-h-[80px]" value={aiClauses} onChange={(e) => setAiClauses(e.target.value)} placeholder="Ex: Incluir cláusula de exclusividade de produção, proibição de terceirização..." />
+            </div>
+            {aiError && <div className="card p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-300">{aiError}</div>}
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setAiOpen(false)} className="btn-secondary">Cancelar</button>
+              <button onClick={runAiGeneration} className="btn-primary"><Sparkles className="h-4 w-4" /> Gerar com IA</button>
+            </div>
+          </div>
+        )}
+        {aiStep === 'generating' && (
+          <div className="py-16 text-center">
+            <RefreshCw className="h-8 w-8 text-teal-600 animate-spin mx-auto mb-4" />
+            <p className="text-slate-600 dark:text-slate-400">Gerando documento com Google Gemini...</p>
+            <p className="text-xs text-slate-400 mt-2">Aguarde, isso pode levar alguns segundos.</p>
+          </div>
+        )}
+        {aiStep === 'review' && (
+          <div className="space-y-4">
+            <div className="card p-3 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-5 w-5 text-sky-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-sky-700 dark:text-sky-300">Revise o conteúdo gerado. Você pode editar o texto abaixo antes de confirmar. Ao confirmar, o documento passará para a etapa de preenchimento com dados do cliente, assinatura e geração de PDF.</p>
+              </div>
+            </div>
+            <div>
+              <label className="label">Documento gerado (editável)</label>
+              <textarea className="input min-h-[400px] font-mono text-xs" value={aiGeneratedBody} onChange={(e) => setAiGeneratedBody(e.target.value)} />
+            </div>
+            <div className="flex justify-end gap-3 flex-wrap">
+              <button onClick={() => setAiStep('config')} className="btn-secondary">Voltar e ajustar</button>
+              <button onClick={runAiGeneration} className="btn-secondary"><RefreshCw className="h-4 w-4" /> Regenerar</button>
+              <button onClick={saveAiAsTemplate} className="btn-secondary"><Save className="h-4 w-4" /> Salvar como modelo</button>
+              <button onClick={confirmAiDocument} className="btn-primary"><ArrowRight className="h-4 w-4" /> Revisar e preencher</button>
             </div>
           </div>
         )}
